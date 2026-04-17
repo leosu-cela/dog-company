@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -55,6 +56,7 @@ func main() {
 	userCtrl := user.NewUserController(userHandler)
 
 	r := gin.Default()
+	r.Use(cors.New(buildCORSConfig(cfg.CORSOrigins)))
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "hello from dog-company"})
@@ -109,6 +111,22 @@ func main() {
 		log.Fatalf("forced shutdown: %v", err)
 	}
 	log.Println("server exited")
+}
+
+func buildCORSConfig(origins []string) cors.Config {
+	c := cors.Config{
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: false,
+		MaxAge:           12 * time.Hour,
+	}
+	if len(origins) == 0 {
+		c.AllowAllOrigins = true
+	} else {
+		c.AllowOrigins = origins
+	}
+	return c
 }
 
 func runMigrations(databaseURL string) error {
