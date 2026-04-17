@@ -25,6 +25,14 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required" example:"hunter2000"`
 }
 
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required" example:"abc123..."`
+}
+
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required" example:"abc123..."`
+}
+
 // Register godoc
 //
 //	@Summary		Register a new user
@@ -62,7 +70,7 @@ func (ctrl *UserController) Register(c *gin.Context) {
 // Login godoc
 //
 //	@Summary		Login with account + password
-//	@Description	Returns a JWT valid for 24h. Account lookup is case-insensitive.
+//	@Description	Returns an access token (15m) and a refresh token (30d). Use the access token in Authorization header; use the refresh token at /auth/refresh to rotate.
 //	@Tags			auth
 //	@Accept			json
 //	@Produce		json
@@ -91,6 +99,66 @@ func (ctrl *UserController) Login(c *gin.Context) {
 		return
 	}
 	res = tool.OK(data)
+}
+
+// Refresh godoc
+//
+//	@Summary		Rotate refresh token and issue new access token
+//	@Description	Exchange a valid refresh token for a fresh access + refresh pair. The old refresh token is revoked (one-time use). If a revoked token is reused, all of the user's refresh tokens are invalidated (reuse detection) and the client must login again.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		refreshRequest		true	"refresh payload"
+//	@Success		200		{object}	tool.CommonResponse{data=RefreshOutput}
+//	@Failure		400		{object}	tool.CommonResponse	"refresh_token required"
+//	@Failure		401		{object}	tool.CommonResponse	"invalid / expired / reused refresh token"
+//	@Failure		500		{object}	tool.CommonResponse	"internal error"
+//	@Router			/auth/refresh [post]
+func (ctrl *UserController) Refresh(c *gin.Context) {
+	var res tool.CommonResponse
+	defer tool.WriteByHeader(c, &res)
+
+	var req refreshRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		res = tool.Err(tool.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	data, commonRes := ctrl.handler.Refresh(c.Request.Context(), RefreshInput{
+		RefreshToken: req.RefreshToken,
+	})
+	if commonRes.Code != tool.CodeOK {
+		res = commonRes
+		return
+	}
+	res = tool.OK(data)
+}
+
+// Logout godoc
+//
+//	@Summary		Revoke a refresh token
+//	@Description	Invalidate the given refresh token. Idempotent — unknown or already-revoked tokens return OK. Access tokens remain valid until their 15m TTL; this endpoint does not revoke them.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		logoutRequest		true	"logout payload"
+//	@Success		200		{object}	tool.CommonResponse
+//	@Failure		400		{object}	tool.CommonResponse	"invalid request body"
+//	@Failure		500		{object}	tool.CommonResponse	"internal error"
+//	@Router			/auth/logout [post]
+func (ctrl *UserController) Logout(c *gin.Context) {
+	var res tool.CommonResponse
+	defer tool.WriteByHeader(c, &res)
+
+	var req logoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		res = tool.Err(tool.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	res = ctrl.handler.Logout(c.Request.Context(), LogoutInput{
+		RefreshToken: req.RefreshToken,
+	})
 }
 
 // Me godoc

@@ -31,8 +31,25 @@ type LoginInput struct {
 }
 
 type LoginOutput struct {
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expires_at"`
+	AccessToken      string    `json:"access_token"`
+	AccessExpiresAt  time.Time `json:"access_expires_at"`
+	RefreshToken     string    `json:"refresh_token"`
+	RefreshExpiresAt time.Time `json:"refresh_expires_at"`
+}
+
+type RefreshInput struct {
+	RefreshToken string
+}
+
+type RefreshOutput struct {
+	AccessToken      string    `json:"access_token"`
+	AccessExpiresAt  time.Time `json:"access_expires_at"`
+	RefreshToken     string    `json:"refresh_token"`
+	RefreshExpiresAt time.Time `json:"refresh_expires_at"`
+}
+
+type LogoutInput struct {
+	RefreshToken string
 }
 
 type MeOutput struct {
@@ -41,13 +58,21 @@ type MeOutput struct {
 }
 
 type UserHandler struct {
-	db     *gorm.DB
-	repo   IUserRepository
-	signer auth.Signer
+	db          *gorm.DB
+	repo        IUserRepository
+	refreshRepo auth.IRefreshTokenRepository
+	signer      auth.Signer
+	refreshTTL  time.Duration
 }
 
-func NewUserHandler(db *gorm.DB, repo IUserRepository, signer auth.Signer) *UserHandler {
-	return &UserHandler{db: db, repo: repo, signer: signer}
+func NewUserHandler(db *gorm.DB, repo IUserRepository, refreshRepo auth.IRefreshTokenRepository, signer auth.Signer, refreshTTL time.Duration) *UserHandler {
+	return &UserHandler{
+		db:          db,
+		repo:        repo,
+		refreshRepo: refreshRepo,
+		signer:      signer,
+		refreshTTL:  refreshTTL,
+	}
 }
 
 func (handler *UserHandler) Register(ctx context.Context, in RegisterInput) (RegisterOutput, tool.CommonResponse) {
@@ -109,13 +134,138 @@ func (handler *UserHandler) Login(ctx context.Context, in LoginInput) (LoginOutp
 		return LoginOutput{}, tool.Err(tool.CodeUnauthorized, "account or password incorrect")
 	}
 
-	token, exp, err := handler.signer.Sign(u.ID)
+	accessToken, accessExpiresAt, err := handler.signer.Sign(u.ID)
 	if err != nil {
 		log.Printf("%s signer.Sign failed: %v", group, err)
 		return LoginOutput{}, tool.Err(tool.CodeInternal, "internal error")
 	}
 
-	return LoginOutput{Token: token, ExpiresAt: exp}, tool.OK(nil)
+	refreshRaw, refreshHash, err := auth.GenerateRefreshToken()
+	if err != nil {
+		log.Printf("%s GenerateRefreshToken failed: %v", group, err)
+		return LoginOutput{}, tool.Err(tool.CodeInternal, "internal error")
+	}
+	refreshExpiresAt := time.Now().Add(handler.refreshTTL)
+	if err := handler.refreshRepo.Create(tx, &auth.RefreshToken{
+		UserID:    u.ID,
+		TokenHash: refreshHash,
+		ExpiresAt: refreshExpiresAt,
+	}); err != nil {
+		log.Printf("%s refreshRepo.Create failed: %v", group, err)
+		return LoginOutput{}, tool.Err(tool.CodeInternal, "internal error")
+	}
+
+	return LoginOutput{
+		AccessToken:      accessToken,
+		AccessExpiresAt:  accessExpiresAt,
+		RefreshToken:     refreshRaw,
+		RefreshExpiresAt: refreshExpiresAt,
+	}, tool.OK(nil)
+}
+
+// Refresh rotates the refresh token: marks the old one revoked + linked to
+// a fresh one, issues a new access token. If the presented refresh token is
+// already revoked, treats it as theft and revokes all refresh tokens for
+// that user (OAuth 2.1 reuse detection).
+func (handler *UserHandler) Refresh(ctx context.Context, in RefreshInput) (RefreshOutput, tool.CommonResponse) {
+	group := "[UserHandler@Refresh]"
+
+	if in.RefreshToken == "" {
+		return RefreshOutput{}, tool.Err(tool.CodeBadRequest, "refresh_token required")
+	}
+	hash := auth.HashRefreshToken(in.RefreshToken)
+	tx := handler.db.WithContext(ctx)
+
+	existing, err := handler.refreshRepo.FindByHash(tx, hash)
+	if err != nil {
+		if errors.Is(err, auth.ErrRefreshNotFound) {
+			return RefreshOutput{}, tool.Err(tool.CodeUnauthorized, "invalid refresh token")
+		}
+		log.Printf("%s FindByHash failed: %v", group, err)
+		return RefreshOutput{}, tool.Err(tool.CodeInternal, "internal error")
+	}
+
+	if existing.RevokedAt != nil {
+		log.Printf("%s reuse detected user=%d rt_id=%d", group, existing.UserID, existing.ID)
+		if err := handler.refreshRepo.RevokeAllByUser(tx, existing.UserID); err != nil {
+			log.Printf("%s RevokeAllByUser failed: %v", group, err)
+		}
+		return RefreshOutput{}, tool.Err(tool.CodeUnauthorized, "refresh token reuse detected; please login again")
+	}
+
+	if time.Now().After(existing.ExpiresAt) {
+		return RefreshOutput{}, tool.Err(tool.CodeUnauthorized, "refresh token expired")
+	}
+
+	newRaw, newHash, err := auth.GenerateRefreshToken()
+	if err != nil {
+		log.Printf("%s GenerateRefreshToken failed: %v", group, err)
+		return RefreshOutput{}, tool.Err(tool.CodeInternal, "internal error")
+	}
+	newExpiresAt := time.Now().Add(handler.refreshTTL)
+
+	var accessToken string
+	var accessExpiresAt time.Time
+
+	txErr := tx.Transaction(func(itx *gorm.DB) error {
+		if err := handler.refreshRepo.Create(itx, &auth.RefreshToken{
+			UserID:    existing.UserID,
+			TokenHash: newHash,
+			ExpiresAt: newExpiresAt,
+		}); err != nil {
+			return err
+		}
+		if err := handler.refreshRepo.Revoke(itx, existing.ID, &newHash); err != nil {
+			return err
+		}
+		var signErr error
+		accessToken, accessExpiresAt, signErr = handler.signer.Sign(existing.UserID)
+		return signErr
+	})
+
+	if txErr != nil {
+		log.Printf("%s rotate tx failed: %v", group, txErr)
+		return RefreshOutput{}, tool.Err(tool.CodeInternal, "internal error")
+	}
+
+	return RefreshOutput{
+		AccessToken:      accessToken,
+		AccessExpiresAt:  accessExpiresAt,
+		RefreshToken:     newRaw,
+		RefreshExpiresAt: newExpiresAt,
+	}, tool.OK(nil)
+}
+
+// Logout is idempotent: unknown / already-revoked tokens return OK silently
+// so the client can safely call it without extra state checks.
+func (handler *UserHandler) Logout(ctx context.Context, in LogoutInput) tool.CommonResponse {
+	group := "[UserHandler@Logout]"
+
+	if in.RefreshToken == "" {
+		return tool.OK(nil)
+	}
+
+	hash := auth.HashRefreshToken(in.RefreshToken)
+	tx := handler.db.WithContext(ctx)
+
+	existing, err := handler.refreshRepo.FindByHash(tx, hash)
+	if err != nil {
+		if errors.Is(err, auth.ErrRefreshNotFound) {
+			return tool.OK(nil)
+		}
+		log.Printf("%s FindByHash failed: %v", group, err)
+		return tool.Err(tool.CodeInternal, "internal error")
+	}
+
+	if existing.RevokedAt != nil {
+		return tool.OK(nil)
+	}
+
+	if err := handler.refreshRepo.Revoke(tx, existing.ID, nil); err != nil {
+		log.Printf("%s Revoke failed: %v", group, err)
+		return tool.Err(tool.CodeInternal, "internal error")
+	}
+	return tool.OK(nil)
 }
 
 func (handler *UserHandler) Me(ctx context.Context, userID uint64) (MeOutput, tool.CommonResponse) {

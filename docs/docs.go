@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/auth/login": {
             "post": {
-                "description": "Returns a JWT valid for 24h. Account lookup is case-insensitive.",
+                "description": "Returns an access token (15m) and a refresh token (30d). Use the access token in Authorization header; use the refresh token at /auth/refresh to rotate.",
                 "consumes": [
                     "application/json"
                 ],
@@ -79,6 +79,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/logout": {
+            "post": {
+                "description": "Invalidate the given refresh token. Idempotent — unknown or already-revoked tokens return OK. Access tokens remain valid until their 15m TTL; this endpoint does not revoke them.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Revoke a refresh token",
+                "parameters": [
+                    {
+                        "description": "logout payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_user.logoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request body",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/me": {
             "get": {
                 "security": [
@@ -115,6 +161,70 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "missing / invalid / expired token",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "description": "Exchange a valid refresh token for a fresh access + refresh pair. The old refresh token is revoked (one-time use). If a revoked token is reused, all of the user's refresh tokens are invalidated (reuse detection) and the client must login again.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Rotate refresh token and issue new access token",
+                "parameters": [
+                    {
+                        "description": "refresh payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_user.refreshRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_user.RefreshOutput"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "refresh_token required",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "invalid / expired / reused refresh token",
                         "schema": {
                             "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
                         }
@@ -209,10 +319,16 @@ const docTemplate = `{
         "internal_user.LoginOutput": {
             "type": "object",
             "properties": {
-                "expires_at": {
+                "access_expires_at": {
                     "type": "string"
                 },
-                "token": {
+                "access_token": {
+                    "type": "string"
+                },
+                "refresh_expires_at": {
+                    "type": "string"
+                },
+                "refresh_token": {
                     "type": "string"
                 }
             }
@@ -225,6 +341,23 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_user.RefreshOutput": {
+            "type": "object",
+            "properties": {
+                "access_expires_at": {
+                    "type": "string"
+                },
+                "access_token": {
+                    "type": "string"
+                },
+                "refresh_expires_at": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
                 }
             }
         },
@@ -253,6 +386,30 @@ const docTemplate = `{
                 "password": {
                     "type": "string",
                     "example": "hunter2000"
+                }
+            }
+        },
+        "internal_user.logoutRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string",
+                    "example": "abc123..."
+                }
+            }
+        },
+        "internal_user.refreshRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string",
+                    "example": "abc123..."
                 }
             }
         },

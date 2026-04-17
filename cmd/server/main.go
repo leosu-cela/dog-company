@@ -50,9 +50,10 @@ func main() {
 		log.Fatalf("database init failed: %v", err)
 	}
 
-	jwtImpl := auth.NewHS256JWT(cfg.JWTSecret, cfg.JWTTTL)
+	jwtImpl := auth.NewHS256JWT(cfg.JWTSecret, cfg.JWTAccessTTL)
 	userRepo := user.NewUserRepository()
-	userHandler := user.NewUserHandler(db, userRepo, jwtImpl)
+	refreshRepo := auth.NewRefreshTokenRepository()
+	userHandler := user.NewUserHandler(db, userRepo, refreshRepo, jwtImpl, cfg.JWTRefreshTTL)
 	userCtrl := user.NewUserController(userHandler)
 
 	r := gin.Default()
@@ -83,6 +84,8 @@ func main() {
 	authPublic := api.Group("/auth")
 	authPublic.POST("/register", userCtrl.Register)
 	authPublic.POST("/login", userCtrl.Login)
+	authPublic.POST("/refresh", userCtrl.Refresh)
+	authPublic.POST("/logout", userCtrl.Logout)
 
 	authed := api.Group("", auth.AuthRequired(jwtImpl))
 	authed.GET("/auth/me", userCtrl.Me)

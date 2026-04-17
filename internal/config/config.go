@@ -8,20 +8,22 @@ import (
 )
 
 type Config struct {
-	Port         string
-	DatabaseURL  string
-	JWTSecret    []byte
-	JWTTTL       time.Duration
-	CORSOrigins  []string
+	Port          string
+	DatabaseURL   string
+	JWTSecret     []byte
+	JWTAccessTTL  time.Duration
+	JWTRefreshTTL time.Duration
+	CORSOrigins   []string
 }
 
 func Load() *Config {
 	return &Config{
-		Port:        getEnv("PORT", "8080"),
-		DatabaseURL: mustEnv("DATABASE_URL"),
-		JWTSecret:   []byte(mustEnv("JWT_SECRET")),
-		JWTTTL:      24 * time.Hour,
-		CORSOrigins: parseCSV(os.Getenv("CORS_ALLOWED_ORIGINS")),
+		Port:          getEnv("PORT", "8080"),
+		DatabaseURL:   mustEnv("DATABASE_URL"),
+		JWTSecret:     []byte(mustEnv("JWT_SECRET")),
+		JWTAccessTTL:  15 * time.Minute,
+		JWTRefreshTTL: 30 * 24 * time.Hour,
+		CORSOrigins:   parseCSV(os.Getenv("CORS_ALLOWED_ORIGINS")),
 	}
 }
 
