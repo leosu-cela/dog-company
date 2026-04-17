@@ -31,3 +31,9 @@ venv/
 dist/
 build/
 out/
+/bin/
+*.exe
+
+# Go
+coverage.out
+*.test
