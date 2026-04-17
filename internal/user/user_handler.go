@@ -13,7 +13,7 @@ import (
 	"github.com/leosu-cela/dog-company/pkg/tool"
 )
 
-const bcryptCost = 12
+const bcryptCost = 10
 
 type RegisterInput struct {
 	Account  string
