@@ -138,7 +138,7 @@ func (handler *UserHandler) Login(ctx context.Context, in LoginInput) (LoginOutp
 		return LoginOutput{}, tool.Err(tool.CodeUnauthorized, "account or password incorrect")
 	}
 
-	accessToken, accessExpiresAt, err := handler.signer.Sign(u.ID)
+	accessToken, accessExpiresAt, err := handler.signer.Sign(u.UID)
 	if err != nil {
 		log.Printf("%s signer.Sign failed: %v", group, err)
 		return LoginOutput{}, tool.Err(tool.CodeInternal, "internal error")
@@ -212,6 +212,10 @@ func (handler *UserHandler) Refresh(ctx context.Context, in RefreshInput) (Refre
 	var accessExpiresAt time.Time
 
 	txErr := tx.Transaction(func(itx *gorm.DB) error {
+		u, err := handler.repo.FindByID(itx, existing.UserID)
+		if err != nil {
+			return err
+		}
 		if err := handler.refreshRepo.Create(itx, &auth.RefreshToken{
 			UserID:    existing.UserID,
 			TokenHash: newHash,
@@ -223,7 +227,7 @@ func (handler *UserHandler) Refresh(ctx context.Context, in RefreshInput) (Refre
 			return err
 		}
 		var signErr error
-		accessToken, accessExpiresAt, signErr = handler.signer.Sign(existing.UserID)
+		accessToken, accessExpiresAt, signErr = handler.signer.Sign(u.UID)
 		return signErr
 	})
 
@@ -272,16 +276,16 @@ func (handler *UserHandler) Logout(ctx context.Context, in LogoutInput) tool.Com
 	return tool.OK(nil)
 }
 
-func (handler *UserHandler) Me(ctx context.Context, userID uint64) (MeOutput, tool.CommonResponse) {
+func (handler *UserHandler) Me(ctx context.Context, uid uuid.UUID) (MeOutput, tool.CommonResponse) {
 	group := "[UserHandler@Me]"
 
 	tx := handler.db.WithContext(ctx)
-	u, err := handler.repo.FindByID(tx, userID)
+	u, err := handler.repo.FindByUID(tx, uid)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return MeOutput{}, tool.Err(tool.CodeUnauthorized, "user not found")
 		}
-		log.Printf("%s repo.FindByID failed: %v", group, err)
+		log.Printf("%s repo.FindByUID failed: %v", group, err)
 		return MeOutput{}, tool.Err(tool.CodeInternal, "internal error")
 	}
 

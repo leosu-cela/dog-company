@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/leosu-cela/dog-company/pkg/tool"
 )
@@ -11,7 +12,7 @@ import (
 const (
 	HeaderAuthorization = "Authorization"
 	bearerPrefix        = "Bearer "
-	ContextKeyUserID    = "user_id"
+	ContextKeyUID       = "uid"
 )
 
 func AuthRequired(verifier Verifier) gin.HandlerFunc {
@@ -30,17 +31,17 @@ func AuthRequired(verifier Verifier) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		c.Set(ContextKeyUserID, claims.UserID)
+		c.Set(ContextKeyUID, claims.UID)
 		c.Next()
 	}
 }
 
-func UserIDFromContext(c *gin.Context) (uint64, bool) {
-	v, ok := c.Get(ContextKeyUserID)
+func UIDFromContext(c *gin.Context) (uuid.UUID, bool) {
+	v, ok := c.Get(ContextKeyUID)
 	if !ok {
-		return 0, false
+		return uuid.Nil, false
 	}
-	id, ok := v.(uint64)
+	id, ok := v.(uuid.UUID)
 	return id, ok
 }
 

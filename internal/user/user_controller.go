@@ -176,13 +176,13 @@ func (ctrl *UserController) Me(c *gin.Context) {
 	var res tool.CommonResponse
 	defer tool.WriteByHeader(c, &res)
 
-	userID, ok := auth.UserIDFromContext(c)
+	uid, ok := auth.UIDFromContext(c)
 	if !ok {
 		res = tool.Err(tool.CodeUnauthorized, "missing user context")
 		return
 	}
 
-	data, commonRes := ctrl.handler.Me(c.Request.Context(), userID)
+	data, commonRes := ctrl.handler.Me(c.Request.Context(), uid)
 	if commonRes.Code != tool.CodeOK {
 		res = commonRes
 		return

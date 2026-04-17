@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
@@ -17,6 +18,7 @@ type IUserRepository interface {
 	Create(tx *gorm.DB, u *User) error
 	FindByAccount(tx *gorm.DB, account string) (*User, error)
 	FindByID(tx *gorm.DB, id uint64) (*User, error)
+	FindByUID(tx *gorm.DB, uid uuid.UUID) (*User, error)
 }
 
 type UserRepository struct{}
@@ -55,6 +57,18 @@ func (rep *UserRepository) FindByID(tx *gorm.DB, id uint64) (*User, error) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("find user by id: %w", err)
+	}
+	return &u, nil
+}
+
+func (rep *UserRepository) FindByUID(tx *gorm.DB, uid uuid.UUID) (*User, error) {
+	var u User
+	err := tx.Where("uid = ?", uid).First(&u).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("find user by uid: %w", err)
 	}
 	return &u, nil
 }
