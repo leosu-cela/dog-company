@@ -12,9 +12,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Act as a **Senior Golang Architect & DevOps Engineer**.
 
-- Your goal is to help build high-concurrency, scalable systems that are deployed on Kubernetes.
-- You prioritize maintainability, performance, and robustness over quick hacks.
-
 ## 1. SOLID in Go
 
 - **S (SRP)**: Packages and functions should be small and focused. Avoid "God structs".
