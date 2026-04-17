@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS uniq_users_uid;
+ALTER TABLE users DROP COLUMN IF EXISTS uid;

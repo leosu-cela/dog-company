@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
@@ -22,6 +23,7 @@ type RegisterInput struct {
 
 type RegisterOutput struct {
 	UserID  uint64 `json:"user_id"`
+	UID     string `json:"uid"`
 	Account string `json:"account"`
 }
 
@@ -54,6 +56,7 @@ type LogoutInput struct {
 
 type MeOutput struct {
 	UserID  uint64 `json:"user_id"`
+	UID     string `json:"uid"`
 	Account string `json:"account"`
 }
 
@@ -93,6 +96,7 @@ func (handler *UserHandler) Register(ctx context.Context, in RegisterInput) (Reg
 	}
 
 	u := &User{
+		UID:          uuid.New(),
 		Account:      account,
 		PasswordHash: string(hash),
 	}
@@ -106,7 +110,7 @@ func (handler *UserHandler) Register(ctx context.Context, in RegisterInput) (Reg
 		return RegisterOutput{}, tool.Err(tool.CodeInternal, "internal error")
 	}
 
-	return RegisterOutput{UserID: u.ID, Account: u.Account}, tool.OK(nil)
+	return RegisterOutput{UserID: u.ID, UID: u.UID.String(), Account: u.Account}, tool.OK(nil)
 }
 
 func (handler *UserHandler) Login(ctx context.Context, in LoginInput) (LoginOutput, tool.CommonResponse) {
@@ -281,5 +285,5 @@ func (handler *UserHandler) Me(ctx context.Context, userID uint64) (MeOutput, to
 		return MeOutput{}, tool.Err(tool.CodeInternal, "internal error")
 	}
 
-	return MeOutput{UserID: u.ID, Account: u.Account}, tool.OK(nil)
+	return MeOutput{UserID: u.ID, UID: u.UID.String(), Account: u.Account}, tool.OK(nil)
 }

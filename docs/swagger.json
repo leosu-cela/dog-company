@@ -332,6 +332,9 @@
                 "account": {
                     "type": "string"
                 },
+                "uid": {
+                    "type": "string"
+                },
                 "user_id": {
                     "type": "integer"
                 }
@@ -358,6 +361,9 @@
             "type": "object",
             "properties": {
                 "account": {
+                    "type": "string"
+                },
+                "uid": {
                     "type": "string"
                 },
                 "user_id": {

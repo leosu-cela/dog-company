@@ -339,6 +339,9 @@ const docTemplate = `{
                 "account": {
                     "type": "string"
                 },
+                "uid": {
+                    "type": "string"
+                },
                 "user_id": {
                     "type": "integer"
                 }
@@ -365,6 +368,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "account": {
+                    "type": "string"
+                },
+                "uid": {
                     "type": "string"
                 },
                 "user_id": {
