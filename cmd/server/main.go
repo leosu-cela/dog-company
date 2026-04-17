@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -10,18 +11,32 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 
+	"github.com/leosu-cela/dog-company/internal/auth"
 	"github.com/leosu-cela/dog-company/internal/config"
 	"github.com/leosu-cela/dog-company/internal/database"
+	"github.com/leosu-cela/dog-company/internal/user"
 )
 
 func main() {
 	cfg := config.Load()
 
+	if err := runMigrations(cfg.DatabaseURL); err != nil {
+		log.Fatalf("migrations failed: %v", err)
+	}
+
 	db, err := database.New(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("database init failed: %v", err)
 	}
+
+	jwtImpl := auth.NewHS256JWT(cfg.JWTSecret, cfg.JWTTTL)
+	userRepo := user.NewUserRepository()
+	userHandler := user.NewUserHandler(db, userRepo, jwtImpl)
+	userCtrl := user.NewUserController(userHandler)
 
 	r := gin.Default()
 
@@ -42,6 +57,15 @@ func main() {
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "ready"})
 	})
+
+	api := r.Group("/api/v1")
+
+	authPublic := api.Group("/auth")
+	authPublic.POST("/register", userCtrl.Register)
+	authPublic.POST("/login", userCtrl.Login)
+
+	authed := api.Group("", auth.AuthRequired(jwtImpl))
+	authed.GET("/auth/me", userCtrl.Me)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -67,4 +91,17 @@ func main() {
 		log.Fatalf("forced shutdown: %v", err)
 	}
 	log.Println("server exited")
+}
+
+func runMigrations(databaseURL string) error {
+	m, err := migrate.New("file://migrations", databaseURL)
+	if err != nil {
+		return err
+	}
+	defer m.Close()
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return err
+	}
+	log.Println("migrations applied successfully")
+	return nil
 }
