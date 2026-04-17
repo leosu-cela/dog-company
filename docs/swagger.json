@@ -294,6 +294,175 @@
                     }
                 }
             }
+        },
+        "/saves": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the authenticated user's current save. If no save exists, data is null.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "saves"
+                ],
+                "summary": "Get current save",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_save.GetOutput"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "missing / invalid / expired token",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates the save if absent (accepts any client revision, server starts at 1). If present, client revision must equal server's current revision, otherwise 409 with server state. Body is capped at 64 KiB.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "saves"
+                ],
+                "summary": "Create or overwrite current save",
+                "parameters": [
+                    {
+                        "description": "save payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_save.SavePayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_save.UpsertOutput"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "bad payload / unsupported version / sanity failed",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing / invalid / expired token",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "revision conflict; data carries server state",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_save.ConflictData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Idempotently deletes the authenticated user's save. Returns 200 even when no save existed.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "saves"
+                ],
+                "summary": "Delete current save",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing / invalid / expired token",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -306,6 +475,71 @@
                 "data": {},
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_save.ConflictData": {
+            "type": "object",
+            "properties": {
+                "server_data": {
+                    "type": "object"
+                },
+                "server_revision": {
+                    "type": "integer"
+                },
+                "server_updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_save.GetOutput": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object"
+                },
+                "revision": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_save.SavePayload": {
+            "type": "object",
+            "required": [
+                "data",
+                "version"
+            ],
+            "properties": {
+                "data": {
+                    "type": "object"
+                },
+                "revision": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "internal_save.UpsertOutput": {
+            "type": "object",
+            "properties": {
+                "revision": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
                 }
             }
         },

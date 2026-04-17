@@ -35,7 +35,9 @@ import (
 	"github.com/leosu-cela/dog-company/internal/auth"
 	"github.com/leosu-cela/dog-company/internal/config"
 	"github.com/leosu-cela/dog-company/internal/database"
+	"github.com/leosu-cela/dog-company/internal/save"
 	"github.com/leosu-cela/dog-company/internal/user"
+	"github.com/leosu-cela/dog-company/pkg/tool"
 )
 
 func main() {
@@ -55,6 +57,10 @@ func main() {
 	refreshRepo := auth.NewRefreshTokenRepository()
 	userHandler := user.NewUserHandler(db, userRepo, refreshRepo, jwtImpl, cfg.JWTRefreshTTL)
 	userCtrl := user.NewUserController(userHandler)
+
+	saveRepo := save.NewSaveRepository()
+	saveHandler := save.NewSaveHandler(db, saveRepo)
+	saveCtrl := save.NewSaveController(saveHandler)
 
 	r := gin.Default()
 	r.Use(cors.New(buildCORSConfig(cfg.CORSOrigins)))
@@ -89,6 +95,10 @@ func main() {
 
 	authed := api.Group("", auth.AuthRequired(jwtImpl))
 	authed.GET("/auth/me", userCtrl.Me)
+
+	authed.GET("/saves", saveCtrl.Get)
+	authed.POST("/saves", tool.MaxBodySize(64*1024), saveCtrl.Upsert)
+	authed.DELETE("/saves", saveCtrl.Delete)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

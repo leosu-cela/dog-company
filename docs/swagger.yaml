@@ -8,6 +8,49 @@ definitions:
       message:
         type: string
     type: object
+  internal_save.ConflictData:
+    properties:
+      server_data:
+        type: object
+      server_revision:
+        type: integer
+      server_updated_at:
+        type: string
+    type: object
+  internal_save.GetOutput:
+    properties:
+      data:
+        type: object
+      revision:
+        type: integer
+      updated_at:
+        type: string
+      version:
+        type: integer
+    type: object
+  internal_save.SavePayload:
+    properties:
+      data:
+        type: object
+      revision:
+        example: 3
+        type: integer
+      version:
+        example: 1
+        type: integer
+    required:
+    - data
+    - version
+    type: object
+  internal_save.UpsertOutput:
+    properties:
+      revision:
+        type: integer
+      updated_at:
+        type: string
+      version:
+        type: integer
+    type: object
   internal_user.LoginOutput:
     properties:
       access_expires_at:
@@ -277,6 +320,109 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /saves:
+    delete:
+      description: Idempotently deletes the authenticated user's save. Returns 200
+        even when no save existed.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "401":
+          description: missing / invalid / expired token
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete current save
+      tags:
+      - saves
+    get:
+      description: Returns the authenticated user's current save. If no save exists,
+        data is null.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_save.GetOutput'
+              type: object
+        "401":
+          description: missing / invalid / expired token
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current save
+      tags:
+      - saves
+    post:
+      consumes:
+      - application/json
+      description: Creates the save if absent (accepts any client revision, server
+        starts at 1). If present, client revision must equal server's current revision,
+        otherwise 409 with server state. Body is capped at 64 KiB.
+      parameters:
+      - description: save payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_save.SavePayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_save.UpsertOutput'
+              type: object
+        "400":
+          description: bad payload / unsupported version / sanity failed
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "401":
+          description: missing / invalid / expired token
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "409":
+          description: revision conflict; data carries server state
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_save.ConflictData'
+              type: object
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+      security:
+      - BearerAuth: []
+      summary: Create or overwrite current save
+      tags:
+      - saves
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer {token}" (without quotes).
