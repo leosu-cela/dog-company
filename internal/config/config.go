@@ -21,7 +21,7 @@ func Load() *Config {
 		Port:          getEnv("PORT", "8080"),
 		DatabaseURL:   mustEnv("DATABASE_URL"),
 		JWTSecret:     []byte(mustEnv("JWT_SECRET")),
-		JWTAccessTTL:  15 * time.Minute,
+		JWTAccessTTL:  6 * time.Hour,
 		JWTRefreshTTL: 30 * 24 * time.Hour,
 		CORSOrigins:   parseCSV(os.Getenv("CORS_ALLOWED_ORIGINS")),
 	}

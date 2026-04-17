@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/auth/login": {
             "post": {
-                "description": "Returns an access token (15m) and a refresh token (30d). Use the access token in Authorization header; use the refresh token at /auth/refresh to rotate.",
+                "description": "Returns an access token (6h) and a refresh token (30d). Use the access token in Authorization header; use the refresh token at /auth/refresh to rotate.",
                 "consumes": [
                     "application/json"
                 ],
@@ -81,7 +81,7 @@ const docTemplate = `{
         },
         "/auth/logout": {
             "post": {
-                "description": "Invalidate the given refresh token. Idempotent — unknown or already-revoked tokens return OK. Access tokens remain valid until their 15m TTL; this endpoint does not revoke them.",
+                "description": "Invalidate the given refresh token. Idempotent — unknown or already-revoked tokens return OK. Access tokens remain valid until their 6h TTL; this endpoint does not revoke them.",
                 "consumes": [
                     "application/json"
                 ],

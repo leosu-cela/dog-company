@@ -70,7 +70,7 @@ func (ctrl *UserController) Register(c *gin.Context) {
 // Login godoc
 //
 //	@Summary		Login with account + password
-//	@Description	Returns an access token (15m) and a refresh token (30d). Use the access token in Authorization header; use the refresh token at /auth/refresh to rotate.
+//	@Description	Returns an access token (6h) and a refresh token (30d). Use the access token in Authorization header; use the refresh token at /auth/refresh to rotate.
 //	@Tags			auth
 //	@Accept			json
 //	@Produce		json
@@ -137,7 +137,7 @@ func (ctrl *UserController) Refresh(c *gin.Context) {
 // Logout godoc
 //
 //	@Summary		Revoke a refresh token
-//	@Description	Invalidate the given refresh token. Idempotent — unknown or already-revoked tokens return OK. Access tokens remain valid until their 15m TTL; this endpoint does not revoke them.
+//	@Description	Invalidate the given refresh token. Idempotent — unknown or already-revoked tokens return OK. Access tokens remain valid until their 6h TTL; this endpoint does not revoke them.
 //	@Tags			auth
 //	@Accept			json
 //	@Produce		json
