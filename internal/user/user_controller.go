@@ -16,23 +16,28 @@ func NewUserController(handler *UserHandler) *UserController {
 }
 
 type registerRequest struct {
-	Account  string `json:"account" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Account  string `json:"account"  binding:"required" example:"leo@cela-tech.com"`
+	Password string `json:"password" binding:"required" example:"hunter2000"`
 }
 
 type loginRequest struct {
-	Account  string `json:"account" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Account  string `json:"account"  binding:"required" example:"leo@cela-tech.com"`
+	Password string `json:"password" binding:"required" example:"hunter2000"`
 }
 
 // Register godoc
-// @Summary  Register a new user
-// @Tags     auth
-// @Accept   json
-// @Produce  json
-// @Param    body  body  registerRequest  true  "register payload"
-// @Success  200   {object}  tool.CommonResponse
-// @Router   /api/v1/auth/register [post]
+//
+//	@Summary		Register a new user
+//	@Description	Create a new account. Account is normalized to lowercase; accepts email or [a-z0-9_]{3,30}. Password must be 8-72 chars.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		registerRequest		true	"register payload"
+//	@Success		200		{object}	tool.CommonResponse{data=RegisterOutput}
+//	@Failure		400		{object}	tool.CommonResponse	"invalid request body / validation failed"
+//	@Failure		409		{object}	tool.CommonResponse	"account already exists"
+//	@Failure		500		{object}	tool.CommonResponse	"internal error"
+//	@Router			/auth/register [post]
 func (ctrl *UserController) Register(c *gin.Context) {
 	var res tool.CommonResponse
 	defer tool.WriteByHeader(c, &res)
@@ -55,13 +60,18 @@ func (ctrl *UserController) Register(c *gin.Context) {
 }
 
 // Login godoc
-// @Summary  Login with account + password
-// @Tags     auth
-// @Accept   json
-// @Produce  json
-// @Param    body  body  loginRequest  true  "login payload"
-// @Success  200   {object}  tool.CommonResponse
-// @Router   /api/v1/auth/login [post]
+//
+//	@Summary		Login with account + password
+//	@Description	Returns a JWT valid for 24h. Account lookup is case-insensitive.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		loginRequest		true	"login payload"
+//	@Success		200		{object}	tool.CommonResponse{data=LoginOutput}
+//	@Failure		400		{object}	tool.CommonResponse	"invalid request body"
+//	@Failure		401		{object}	tool.CommonResponse	"account or password incorrect"
+//	@Failure		500		{object}	tool.CommonResponse	"internal error"
+//	@Router			/auth/login [post]
 func (ctrl *UserController) Login(c *gin.Context) {
 	var res tool.CommonResponse
 	defer tool.WriteByHeader(c, &res)
@@ -84,12 +94,16 @@ func (ctrl *UserController) Login(c *gin.Context) {
 }
 
 // Me godoc
-// @Summary  Get current user
-// @Tags     auth
-// @Produce  json
-// @Security BearerAuth
-// @Success  200  {object}  tool.CommonResponse
-// @Router   /api/v1/auth/me [get]
+//
+//	@Summary		Get current user
+//	@Description	Returns the user identified by the JWT in the Authorization header.
+//	@Tags			auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	tool.CommonResponse{data=MeOutput}
+//	@Failure		401	{object}	tool.CommonResponse	"missing / invalid / expired token"
+//	@Failure		500	{object}	tool.CommonResponse	"internal error"
+//	@Router			/auth/me [get]
 func (ctrl *UserController) Me(c *gin.Context) {
 	var res tool.CommonResponse
 	defer tool.WriteByHeader(c, &res)

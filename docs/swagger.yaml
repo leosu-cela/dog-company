@@ -1,0 +1,175 @@
+basePath: /api/v1
+definitions:
+  github_com_leosu-cela_dog-company_pkg_tool.CommonResponse:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+    type: object
+  internal_user.LoginOutput:
+    properties:
+      expires_at:
+        type: string
+      token:
+        type: string
+    type: object
+  internal_user.MeOutput:
+    properties:
+      account:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  internal_user.RegisterOutput:
+    properties:
+      account:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  internal_user.loginRequest:
+    properties:
+      account:
+        example: leo@cela-tech.com
+        type: string
+      password:
+        example: hunter2000
+        type: string
+    required:
+    - account
+    - password
+    type: object
+  internal_user.registerRequest:
+    properties:
+      account:
+        example: leo@cela-tech.com
+        type: string
+      password:
+        example: hunter2000
+        type: string
+    required:
+    - account
+    - password
+    type: object
+info:
+  contact: {}
+  description: Member system for dog-company (register, login, profile).
+  title: dog-company API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Returns a JWT valid for 24h. Account lookup is case-insensitive.
+      parameters:
+      - description: login payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_user.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_user.LoginOutput'
+              type: object
+        "400":
+          description: invalid request body
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "401":
+          description: account or password incorrect
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+      summary: Login with account + password
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Returns the user identified by the JWT in the Authorization header.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_user.MeOutput'
+              type: object
+        "401":
+          description: missing / invalid / expired token
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new account. Account is normalized to lowercase; accepts
+        email or [a-z0-9_]{3,30}. Password must be 8-72 chars.
+      parameters:
+      - description: register payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_user.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_user.RegisterOutput'
+              type: object
+        "400":
+          description: invalid request body / validation failed
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "409":
+          description: account already exists
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
+      summary: Register a new user
+      tags:
+      - auth
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer {token}" (without quotes).
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

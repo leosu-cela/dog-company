@@ -1,3 +1,16 @@
+// Package main is the entry point for the dog-company API server.
+//
+//	@title			dog-company API
+//	@version		1.0
+//	@description	Member system for dog-company (register, login, profile).
+//	@BasePath		/api/v1
+//
+//	@securityDefinitions.apikey	BearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Type "Bearer {token}" (without quotes).
+//
+//go:generate swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
 package main
 
 import (
@@ -14,7 +27,10 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
+	_ "github.com/leosu-cela/dog-company/docs"
 	"github.com/leosu-cela/dog-company/internal/auth"
 	"github.com/leosu-cela/dog-company/internal/config"
 	"github.com/leosu-cela/dog-company/internal/database"
@@ -57,6 +73,8 @@ func main() {
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "ready"})
 	})
+
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api/v1")
 
