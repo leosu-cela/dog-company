@@ -302,6 +302,188 @@ const docTemplate = `{
                 }
             }
         },
+        "/leaderboard": {
+            "get": {
+                "description": "Returns top entries sorted by days ASC, then money DESC. Auth is optional — if a valid Bearer token is provided and the user has any entry for this goal, the response also includes my_best with the user's best entry and global rank. Default goal=50000, default limit=10 (max 50).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "leaderboard"
+                ],
+                "summary": "Get leaderboard top N",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "max entries (default 10, max 50)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "goal amount (default 50000)",
+                        "name": "goal",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_leaderboard.ListOutput"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Records a race-to-target completion. Nickname is taken from the authenticated user's account (client cannot spoof). Duplicate submissions (same user+goal+days+money within 1 minute) are silently deduplicated and return the existing entry.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "leaderboard"
+                ],
+                "summary": "Submit a leaderboard entry",
+                "parameters": [
+                    {
+                        "description": "submit payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_leaderboard.SubmitPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_leaderboard.SubmitOutput"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "bad payload / sanity failed",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing / invalid / expired token",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/leaderboard/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the authenticated user's own entries sorted by submitted_at DESC. Optional goal filter. Default limit=20 (max 50).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "leaderboard"
+                ],
+                "summary": "Get my leaderboard history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "max entries (default 20, max 50)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "goal filter; omit for all goals",
+                        "name": "goal",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_leaderboard.ListMineOutput"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "missing / invalid / expired token",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/saves": {
             "get": {
                 "security": [
@@ -482,6 +664,118 @@ const docTemplate = `{
                 "data": {},
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_leaderboard.EntryOutput": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer"
+                },
+                "goal": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "money": {
+                    "type": "integer"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "office_level": {
+                    "type": "integer"
+                },
+                "staff_count": {
+                    "type": "integer"
+                },
+                "submitted_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_leaderboard.ListMineOutput": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_leaderboard.EntryOutput"
+                    }
+                }
+            }
+        },
+        "internal_leaderboard.ListOutput": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_leaderboard.EntryOutput"
+                    }
+                },
+                "my_best": {
+                    "$ref": "#/definitions/internal_leaderboard.MyBest"
+                }
+            }
+        },
+        "internal_leaderboard.MyBest": {
+            "type": "object",
+            "properties": {
+                "entry": {
+                    "$ref": "#/definitions/internal_leaderboard.EntryOutput"
+                },
+                "rank": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_leaderboard.SubmitOutput": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "rank": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_leaderboard.SubmitPayload": {
+            "type": "object",
+            "required": [
+                "days",
+                "goal",
+                "money"
+            ],
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "example": 58
+                },
+                "goal": {
+                    "type": "integer",
+                    "example": 50000
+                },
+                "money": {
+                    "type": "integer",
+                    "example": 52340
+                },
+                "office_level": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "staff_count": {
+                    "type": "integer",
+                    "example": 9
                 }
             }
         },

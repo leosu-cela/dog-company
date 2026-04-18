@@ -11,10 +11,12 @@ const (
 	CodeConflict     = 40900
 	CodeInternal     = 50000
 
+	// Shared spec codes (saves / leaderboard / future features).
+	CodeBadPayload   = 4000
+	CodeSanityFailed = 4002
+
 	// Save-specific codes (docs/saves-api.md spec).
-	CodeSaveBadPayload         = 4000
 	CodeSaveUnsupportedVersion = 4001
-	CodeSaveSanityFailed       = 4002
 	CodeSaveConflict           = 4090
 )
 
@@ -39,9 +41,9 @@ func ErrWithData(code int, message string, data interface{}) CommonResponse {
 var codeToStatus = map[int]int{
 	CodeOK:                     200,
 	CodeBadRequest:             400,
-	CodeSaveBadPayload:         400,
+	CodeBadPayload:             400,
+	CodeSanityFailed:           400,
 	CodeSaveUnsupportedVersion: 400,
-	CodeSaveSanityFailed:       400,
 	CodeUnauthorized:           401,
 	CodeForbidden:              403,
 	CodeNotFound:               404,

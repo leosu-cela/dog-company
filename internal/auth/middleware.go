@@ -15,6 +15,26 @@ const (
 	ContextKeyUID       = "uid"
 )
 
+// AuthOptional parses a Bearer token if present. When the token is absent
+// or invalid, the request proceeds anonymously (no UID in context).
+// Handlers downstream MUST treat UID as optional via UIDFromContext.
+func AuthOptional(verifier Verifier) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		raw := extractBearerToken(c.GetHeader(HeaderAuthorization))
+		if raw == "" {
+			c.Next()
+			return
+		}
+		claims, err := verifier.Verify(raw)
+		if err != nil {
+			c.Next()
+			return
+		}
+		c.Set(ContextKeyUID, claims.UID)
+		c.Next()
+	}
+}
+
 func AuthRequired(verifier Verifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw := extractBearerToken(c.GetHeader(HeaderAuthorization))

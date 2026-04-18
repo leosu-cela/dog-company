@@ -99,10 +99,10 @@ func (handler *SaveHandler) Upsert(ctx context.Context, uid uuid.UUID, payload S
 
 	var data saveDataForCheck
 	if err := json.Unmarshal(payload.Data, &data); err != nil {
-		return tool.Err(tool.CodeSaveBadPayload, "data is not valid json")
+		return tool.Err(tool.CodeBadPayload, "data is not valid json")
 	}
 	if err := sanityCheck(&data); err != nil {
-		return tool.Err(tool.CodeSaveSanityFailed, err.Error())
+		return tool.Err(tool.CodeSanityFailed, err.Error())
 	}
 
 	var out UpsertOutput
@@ -160,7 +160,7 @@ func (handler *SaveHandler) Upsert(ctx context.Context, uid uuid.UUID, payload S
 	case errors.Is(txErr, errSaveConflict):
 		return tool.ErrWithData(tool.CodeSaveConflict, "save conflict", conflict)
 	case errors.Is(txErr, errSanityFailed):
-		return tool.Err(tool.CodeSaveSanityFailed, sanityFailMsg)
+		return tool.Err(tool.CodeSanityFailed, sanityFailMsg)
 	default:
 		log.Printf("%s tx failed: %v", group, txErr)
 		return tool.Err(tool.CodeInternal, "internal error")

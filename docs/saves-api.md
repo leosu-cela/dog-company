@@ -2,7 +2,7 @@
 
 本文件描述 `dog-company` 後端需要新增的存檔端點。極簡版：一人一份 current save，不做歷代封存、不做排行榜。
 
-> 規格版本：draft-3（2026-04-18）
+> 規格版本：draft-5（2026-04-18，加入 purchases 商品購買紀錄）
 > 基準 API base：`https://dog-company-production.up.railway.app/api/v1`
 
 ---
@@ -39,6 +39,7 @@
     "stabilityBoost": 2,
     "trainingBoost": 0,
     "officeLevel": 2,
+    "purchases": { "snack": 3, "desk": 1, "coffee": 1 },
     "vacancy": false,
     "vacancyTimer": 0,
     "bankrupt": false,
@@ -54,7 +55,7 @@
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | `version` | int | 存檔格式版本，目前 **1**。未來欄位變動會升版 |
-| `revision` | int | 客端持有的存檔 revision（首次存送 0）。衝突偵測用 |
+| `revision` | int, **optional** | 客端持有的存檔 revision。衝突偵測用。首次存檔可省略，server 會從 1 起算 |
 | `data` | object | 實際遊戲狀態。下面詳列 |
 
 ### GameSaveData 欄位
@@ -67,6 +68,7 @@
 - `decor` (int, >=0)
 - `productivityBoost`, `stabilityBoost`, `trainingBoost` (int, >=0)
 - `officeLevel` (int, 0-N)
+- `purchases` (object)：商品 id → 購買次數，例如 `{ "snack": 3, "coffee": 1 }`
 - `vacancy` (bool)
 - `vacancyTimer` (int, >=0)
 - `bankrupt` (bool)
@@ -135,7 +137,7 @@ queue / current candidate / candidatePatience / showSplash / activeTab / speedMu
    - 否則 → 409 衝突
 2. Sanity check（下段）
 
-**Response 200**：
+**Response 200**（`UpsertResponse`，**不回傳 data 省頻寬**）：
 ```json
 {
   "code": 0,

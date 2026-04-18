@@ -66,7 +66,7 @@ func (ctrl *SaveController) Upsert(c *gin.Context) {
 
 	var payload SavePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		res = tool.Err(tool.CodeSaveBadPayload, "invalid request body")
+		res = tool.Err(tool.CodeBadPayload, "invalid request body")
 		return
 	}
 

@@ -35,6 +35,7 @@ import (
 	"github.com/leosu-cela/dog-company/internal/auth"
 	"github.com/leosu-cela/dog-company/internal/config"
 	"github.com/leosu-cela/dog-company/internal/database"
+	"github.com/leosu-cela/dog-company/internal/leaderboard"
 	"github.com/leosu-cela/dog-company/internal/save"
 	"github.com/leosu-cela/dog-company/internal/user"
 	"github.com/leosu-cela/dog-company/pkg/tool"
@@ -61,6 +62,11 @@ func main() {
 	saveRepo := save.NewSaveRepository()
 	saveHandler := save.NewSaveHandler(db, saveRepo)
 	saveCtrl := save.NewSaveController(saveHandler)
+
+	leaderboardRepo := leaderboard.NewEntryRepository()
+	leaderboardCache := leaderboard.NewListCache(leaderboard.ListCacheTTL)
+	leaderboardHandler := leaderboard.NewLeaderboardHandler(db, leaderboardRepo, userRepo, leaderboardCache)
+	leaderboardCtrl := leaderboard.NewLeaderboardController(leaderboardHandler)
 
 	r := gin.Default()
 	r.Use(cors.New(buildCORSConfig(cfg.CORSOrigins)))
@@ -93,12 +99,17 @@ func main() {
 	authPublic.POST("/refresh", userCtrl.Refresh)
 	authPublic.POST("/logout", userCtrl.Logout)
 
+	api.GET("/leaderboard", auth.AuthOptional(jwtImpl), leaderboardCtrl.List)
+
 	authed := api.Group("", auth.AuthRequired(jwtImpl))
 	authed.GET("/auth/me", userCtrl.Me)
 
 	authed.GET("/saves", saveCtrl.Get)
 	authed.POST("/saves", tool.MaxBodySize(64*1024), saveCtrl.Upsert)
 	authed.DELETE("/saves", saveCtrl.Delete)
+
+	authed.GET("/leaderboard/me", leaderboardCtrl.ListMine)
+	authed.POST("/leaderboard", leaderboardCtrl.Submit)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
