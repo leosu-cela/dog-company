@@ -5,11 +5,11 @@ import "github.com/gin-gonic/gin"
 const (
 	CodeOK           = 0
 	CodeBadRequest   = 40000
-	CodeUnauthorized = 40100
+	CodeUnauthorized = 4010
 	CodeForbidden    = 40300
 	CodeNotFound     = 40400
 	CodeConflict     = 40900
-	CodeInternal     = 50000
+	CodeInternal     = 5000
 
 	// Shared spec codes (saves / leaderboard / future features).
 	CodeBadPayload   = 4000
