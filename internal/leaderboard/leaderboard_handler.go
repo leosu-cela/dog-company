@@ -24,7 +24,7 @@ const (
 	MaxStaffCount    = 50
 	DedupeWindow     = time.Minute
 	MoneyMultiplier  = 3
-	ListCacheTTL     = 30 * time.Second
+	ListCacheTTL     = 30 * time.Minute
 )
 
 var allowedGoals = map[int]struct{}{50000: {}}
