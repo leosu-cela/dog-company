@@ -101,13 +101,15 @@ type dogStats struct {
 	Charisma int `json:"charisma"`
 }
 
+// morale/fatigue/loyalty are floats — game logic applies fractional deltas
+// (e.g. loyalty +0.5 per day at company). Stored as number, validated as range.
 type dog struct {
 	ID      string   `json:"id"`
 	IsCEO   bool     `json:"isCEO"`
 	Stats   dogStats `json:"stats"`
-	Morale  int      `json:"morale"`
-	Fatigue int      `json:"fatigue"`
-	Loyalty int      `json:"loyalty"`
+	Morale  float64  `json:"morale"`
+	Fatigue float64  `json:"fatigue"`
+	Loyalty float64  `json:"loyalty"`
 }
 
 type project struct {
@@ -328,13 +330,13 @@ func checkDog(i int, dg *dog) error {
 			return fmt.Errorf("staff[%d].stats.%s must be in [%d,%d] (got %d)", i, name, MinDogStat, MaxDogStat, v)
 		}
 	}
-	for name, v := range map[string]int{
+	for name, v := range map[string]float64{
 		"morale":  dg.Morale,
 		"fatigue": dg.Fatigue,
 		"loyalty": dg.Loyalty,
 	} {
 		if v < 0 || v > 100 {
-			return fmt.Errorf("staff[%d].%s must be in [0,100] (got %d)", i, name, v)
+			return fmt.Errorf("staff[%d].%s must be in [0,100] (got %g)", i, name, v)
 		}
 	}
 	return nil

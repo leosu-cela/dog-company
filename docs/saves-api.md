@@ -182,9 +182,9 @@
 | `id` | string | — | 唯一識別 |
 | `stats` | object | speed/quality/teamwork/charisma 各 1-10 | 4 維能力值（**v2 從 productivity/morale/stability/revenue 改成此 4 維**）|
 | `grade` | string | `S` / `A` / `B` / `C` / `D` | CEO 不算 grade |
-| `morale` | int | 0-100 | 個人士氣（**v2 從全公司 morale 改成個人**）|
-| `fatigue` | int | 0-100 | 疲勞 |
-| `loyalty` | int | 0-100 | 忠誠度（防挖角護盾）|
+| `morale` | number | 0-100 | 個人士氣（**v2 從全公司 morale 改成個人**；可為小數）|
+| `fatigue` | number | 0-100 | 疲勞（可為小數）|
+| `loyalty` | number | 0-100 | 忠誠度（防挖角護盾；可為小數，如每日 +0.5）|
 | `experience` | int | ≥0 | 累積經驗，達門檻自動升 grade |
 | `assignedProjectId` | string \| null | — | 目前指派到的案 id |
 | `daysAtCompany` | int | ≥0 | 在公司天數（自然累積 loyalty）|
