@@ -2,7 +2,7 @@
 
 本文件描述 `dog-company` 後端**重寫**後的存檔端點。極簡版：一人一份 current save，不做歷代封存。
 
-> 規格版本：draft-6（2026-04-26，**v2 接案制全面重寫**）
+> 規格版本：draft-8（2026-04-27，Dog 補 `learnedTraits` / `pendingTraitChoice` 升級特性欄位）
 > 基準 API base：`https://dog-company-production.up.railway.app/api/v1`
 
 > ⚠️ **v1 與 v2 不相容**。v1 存檔被棄用，伺服器收到 `version === 1` 的舊存檔可直接視為無效（前端 client 會在 `migrate()` 回 `null`，玩家從新狀態開始）。
@@ -55,14 +55,17 @@
     "vacancyTimer": 0,
     "bankrupt": false,
     "bankruptCountdown": 0,
-    "tutorialStep": 9,
+    "tutorialStep": 7,
     "recruitmentClosed": false,
 
     "staff": [ /* Dog[] */ ],
     "log": [ /* LogEntry[]，最多 10 筆 */ ],
 
     "ipoAchievedAt": null,
-    "ipoDismissed": false
+    "ipoDismissed": false,
+
+    "loanTaken": false,
+    "loanRepayDaysLeft": 0
   }
 }
 ```
@@ -116,7 +119,7 @@
 | `vacancyTimer` | int | ≥0 | 空窗剩餘天數 |
 | `bankrupt` | bool | — | 是否破產 |
 | `bankruptCountdown` | int | 0-5 | **連續資金 ≤0 的天數**（達 5 → 破產）|
-| `tutorialStep` | int | 0-9 | 教學進度。≥9 表示已看完 |
+| `tutorialStep` | int | 0-7 | 教學進度。≥7 表示已看完 |
 | `recruitmentClosed` | bool | — | 玩家手動暫停招募 |
 
 #### 集合
@@ -132,6 +135,13 @@
 |---|---|---|
 | `ipoAchievedAt` | int \| null | IPO 達成天數，未達成 = `null` |
 | `ipoDismissed` | bool | 玩家是否已關閉 IPO 慶祝 modal |
+
+#### 銀行貸款（一次性救急機制）
+
+| 欄位 | 型別 | 範圍 | 說明 |
+|---|---|---|---|
+| `loanTaken` | bool | — | 是否已借過。**一輩子限一次**，true 後永久不可再觸發貸款 modal |
+| `loanRepayDaysLeft` | int | 0-80 | 剩餘還款天數，0 = 無貸款。每天 morning 自動扣 $5，扣到 0 為止 |
 
 #### Dog v2 子物件結構
 
@@ -161,7 +171,9 @@
   "experience": 18,
   "assignedProjectId": "p_8",
   "daysAtCompany": 14,
-  "unhappyLeaveDays": 0
+  "unhappyLeaveDays": 0,
+  "learnedTraits": ["overtime", "mentor"],
+  "pendingTraitChoice": null
 }
 ```
 
@@ -177,6 +189,10 @@
 | `assignedProjectId` | string \| null | — | 目前指派到的案 id |
 | `daysAtCompany` | int | ≥0 | 在公司天數（自然累積 loyalty）|
 | `unhappyLeaveDays` | int | ≥0 | 連續被拒請假次數（連 3 次自動離職）|
+| `learnedTraits` | array of string | — | 已習得特性 id 列表（升級時 +1）；舊存檔缺此欄位視為 `[]` |
+| `pendingTraitChoice` | object \| null | — | 升級後待選的 3 個特性 id；玩家挑完歸 null。結構：`{ "choices": ["overtime","mentor","social"] }` |
+
+**`learnedTraits` 與 `pendingTraitChoice` 的 trait id 列舉**：`overtime` / `perfectionist` / `mentor` / `haggler` / `ironHeart` / `catalyst` / `enduring` / `social`。後端不需驗證 id 是否在列舉內（前端控制），但建議陣列長度 ≤ 8。
 
 #### Project 子物件結構
 
@@ -377,7 +393,8 @@ CREATE TABLE saves (
    - `reputation` ∈ [0, 100]
    - `day`, `money`, `officeLevel`, `tierBudget`, `projectsCompleted`, `projectsFailed`, `bankruptCountdown` >= 0
    - `bankruptCountdown` ≤ 5
-   - `tutorialStep` ∈ [0, 9]
+   - `tutorialStep` ∈ [0, 7]
+   - `loanRepayDaysLeft` ∈ [0, 80]
    - `companyBuffs` 子欄位皆 ≥ 0
 4. **單調遞增**（與 server 上一次 revision 比對）：
    - `day >= prev.day`（同一場遊戲天數不會倒退）
@@ -386,6 +403,7 @@ CREATE TABLE saves (
    - `staff.length <= OFFICE_LEVELS[officeLevel].maxStaff + 2`（給客端超載扣分一點彈性。v2 maxStaff 表為 `[3, 5, 7, 9, 12]`）
    - 每隻 `Dog.stats` 4 維各 ∈ [1, 10]
    - 每隻 `Dog.morale / fatigue / loyalty` ∈ [0, 100]
+   - 每隻 `Dog.learnedTraits.length` ≤ 8（特性表上限）
    - `clients` 內每筆 `Project.status` 為合法列舉
    - `clients.length` ≤ 30（offered 5 + active N + 最近結算 5，留餘裕）
 

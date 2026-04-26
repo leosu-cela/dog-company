@@ -19,10 +19,11 @@ const (
 	LogMaxEntries    = 10
 	MaxClients       = 30
 	MaxBankrupt      = 5
-	MaxTutorialStep  = 9
-	MaxOfficeLevel   = 4
-	MinDogStat       = 1
-	MaxDogStat       = 10
+	MaxTutorialStep   = 7
+	MaxOfficeLevel    = 4
+	MinDogStat        = 1
+	MaxDogStat        = 10
+	MaxLoanRepayDays  = 80
 )
 
 // officeMaxStaff[level] is the soft staff cap; we allow +2 slack as the spec
@@ -78,6 +79,8 @@ type saveDataForCheck struct {
 	ProjectsFailed    int          `json:"projectsFailed"`
 	BankruptCountdown int          `json:"bankruptCountdown"`
 	TutorialStep      int          `json:"tutorialStep"`
+	LoanTaken         bool         `json:"loanTaken"`
+	LoanRepayDaysLeft int          `json:"loanRepayDaysLeft"`
 	Clients           []project    `json:"clients"`
 	Staff             []dog        `json:"staff"`
 	Log               []json.RawMessage `json:"log"`
@@ -262,6 +265,9 @@ func sanityCheck(d *saveDataForCheck) error {
 	}
 	if d.TutorialStep < 0 || d.TutorialStep > MaxTutorialStep {
 		return fmt.Errorf("tutorialStep must be in [0,%d] (got %d)", MaxTutorialStep, d.TutorialStep)
+	}
+	if d.LoanRepayDaysLeft < 0 || d.LoanRepayDaysLeft > MaxLoanRepayDays {
+		return fmt.Errorf("loanRepayDaysLeft must be in [0,%d] (got %d)", MaxLoanRepayDays, d.LoanRepayDaysLeft)
 	}
 	if err := checkBuffs(&d.CompanyBuffs); err != nil {
 		return err
