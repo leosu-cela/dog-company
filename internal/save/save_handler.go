@@ -334,8 +334,16 @@ func checkDog(i int, dg *dog) error {
 	return nil
 }
 
+// monotonicCheckFields is the minimal projection of the saved JSON we need
+// for monotonic comparison. Unmarshaling only these two fields skips the
+// expensive Clients/Staff/Log array decoding on every Upsert.
+type monotonicCheckFields struct {
+	Day               int `json:"day"`
+	ProjectsCompleted int `json:"projectsCompleted"`
+}
+
 func monotonicCheck(d *saveDataForCheck, prevRaw []byte) (string, bool) {
-	var prev saveDataForCheck
+	var prev monotonicCheckFields
 	if err := json.Unmarshal(prevRaw, &prev); err != nil {
 		return "", true
 	}

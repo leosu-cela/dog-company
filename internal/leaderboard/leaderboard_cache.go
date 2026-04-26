@@ -8,7 +8,7 @@ import (
 
 // ListCache caches the result of repo.List(goal, limit).
 // Per-user lookups (ListMine) are intentionally not cached.
-// Submit invalidates the whole cache (cheap: small map, rare writes).
+// Submit invalidates only the affected goal — other goals stay warm.
 type ListCache struct {
 	mu      sync.RWMutex
 	entries map[string]cachedList
@@ -50,8 +50,15 @@ func (c *ListCache) Set(goal, limit int, data []Entry) {
 	}
 }
 
-func (c *ListCache) Invalidate() {
+// InvalidateGoal drops every cached limit-variant of the given goal.
+// Other goals are untouched, avoiding cache stampede across unrelated goals.
+func (c *ListCache) InvalidateGoal(goal int) {
+	prefix := fmt.Sprintf("%d:", goal)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries = make(map[string]cachedList)
+	for k := range c.entries {
+		if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
+			delete(c.entries, k)
+		}
+	}
 }

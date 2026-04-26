@@ -218,7 +218,7 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 		return tool.Err(tool.CodeInternal, "internal error")
 	}
 
-	handler.listCache.Invalidate()
+	handler.listCache.InvalidateGoal(payload.Goal)
 
 	return tool.OK(out)
 }
