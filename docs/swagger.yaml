@@ -22,6 +22,8 @@ definitions:
         type: string
       office_level:
         type: integer
+      projects_completed:
+        type: integer
       staff_count:
         type: integer
       submitted_at:
@@ -29,23 +31,16 @@ definitions:
       user_id:
         type: integer
     type: object
-  internal_leaderboard.ListMineOutput:
-    properties:
-      entries:
-        items:
-          $ref: '#/definitions/internal_leaderboard.EntryOutput'
-        type: array
-    type: object
   internal_leaderboard.ListOutput:
     properties:
       entries:
         items:
           $ref: '#/definitions/internal_leaderboard.EntryOutput'
         type: array
-      my_best:
-        $ref: '#/definitions/internal_leaderboard.MyBest'
+      me:
+        $ref: '#/definitions/internal_leaderboard.Me'
     type: object
-  internal_leaderboard.MyBest:
+  internal_leaderboard.Me:
     properties:
       entry:
         $ref: '#/definitions/internal_leaderboard.EntryOutput'
@@ -74,6 +69,9 @@ definitions:
         type: integer
       office_level:
         example: 4
+        type: integer
+      projects_completed:
+        example: 32
         type: integer
       staff_count:
         example: 9
@@ -111,7 +109,7 @@ definitions:
         example: 3
         type: integer
       version:
-        example: 1
+        example: 2
         type: integer
     required:
     - data
@@ -397,10 +395,10 @@ paths:
       - auth
   /leaderboard:
     get:
-      description: Returns top entries sorted by days ASC, then money DESC. Auth is
-        optional — if a valid Bearer token is provided and the user has any entry
-        for this goal, the response also includes my_best with the user's best entry
-        and global rank. Default goal=50000, default limit=10 (max 50).
+      description: Returns top entries sorted by days ASC, money DESC, projects_completed
+        DESC. Auth is optional — if a valid Bearer token is provided and the user
+        has any entry for this goal, the response also includes me with the user's
+        best entry and global rank. Default goal=50000, default limit=10 (max 50).
       parameters:
       - description: max entries (default 10, max 50)
         in: query
@@ -426,16 +424,15 @@ paths:
           description: internal error
           schema:
             $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
-      summary: Get leaderboard top N
+      summary: Get leaderboard top N (+ caller's me when authed)
       tags:
       - leaderboard
     post:
       consumes:
       - application/json
-      description: Records a race-to-target completion. Nickname is taken from the
-        authenticated user's account (client cannot spoof). Duplicate submissions
-        (same user+goal+days+money within 1 minute) are silently deduplicated and
-        return the existing entry.
+      description: Records an IPO completion. Nickname is taken from the authenticated
+        user's account (client cannot spoof). Duplicate submissions (same user+goal+days+money+projects_completed
+        within 1 minute) are silently deduplicated and return the existing entry.
       parameters:
       - description: submit payload
         in: body
@@ -470,44 +467,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Submit a leaderboard entry
-      tags:
-      - leaderboard
-  /leaderboard/me:
-    get:
-      description: Returns the authenticated user's own entries sorted by submitted_at
-        DESC. Optional goal filter. Default limit=20 (max 50).
-      parameters:
-      - description: max entries (default 20, max 50)
-        in: query
-        name: limit
-        type: integer
-      - description: goal filter; omit for all goals
-        in: query
-        name: goal
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_leaderboard.ListMineOutput'
-              type: object
-        "401":
-          description: missing / invalid / expired token
-          schema:
-            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
-        "500":
-          description: internal error
-          schema:
-            $ref: '#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse'
-      security:
-      - BearerAuth: []
-      summary: Get my leaderboard history
       tags:
       - leaderboard
   /saves:

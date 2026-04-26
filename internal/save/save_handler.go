@@ -15,13 +15,31 @@ import (
 )
 
 const (
-	SupportedVersion = 1
+	SupportedVersion = 2
 	LogMaxEntries    = 10
+	MaxClients       = 30
+	MaxBankrupt      = 5
+	MaxTutorialStep  = 9
+	MaxOfficeLevel   = 4
+	MinDogStat       = 1
+	MaxDogStat       = 10
 )
+
+// officeMaxStaff[level] is the soft staff cap; we allow +2 slack as the spec
+// says, so reject only when staff count exceeds the slack.
+var officeMaxStaff = [...]int{3, 5, 7, 9, 12}
+
+var validProjectStatus = map[string]struct{}{
+	"offered": {},
+	"active":  {},
+	"done":    {},
+	"failed":  {},
+	"late":    {},
+}
 
 // SavePayload is the POST /saves request body.
 type SavePayload struct {
-	Version  int             `json:"version"  binding:"required" example:"1"`
+	Version  int             `json:"version"  binding:"required" example:"2"`
 	Revision int             `json:"revision" example:"3"`
 	Data     json.RawMessage `json:"data"     binding:"required" swaggertype:"object"`
 }
@@ -45,19 +63,53 @@ type ConflictData struct {
 	ServerData      json.RawMessage `json:"server_data" swaggertype:"object"`
 }
 
-// saveDataForCheck holds only the fields needed for sanity validation.
-// Unknown fields are ignored; the raw JSON is stored intact.
+// saveDataForCheck holds the v2 fields we validate. Unknown fields are
+// ignored; the raw JSON is stored intact. v1-only fields (morale/health/
+// productivityBoost/...) are not declared here, matching the spec's
+// "ignore deprecated fields" rule.
 type saveDataForCheck struct {
-	Day               int               `json:"day"`
-	Money             int               `json:"money"`
-	Morale            int               `json:"morale"`
-	Health            int               `json:"health"`
-	OfficeLevel       int               `json:"officeLevel"`
-	ProductivityBoost int               `json:"productivityBoost"`
-	StabilityBoost    int               `json:"stabilityBoost"`
-	TrainingBoost     int               `json:"trainingBoost"`
-	TutorialStep     int                `json:"tutorialStep"`
+	Day               int          `json:"day"`
+	Money             int          `json:"money"`
+	Reputation        int          `json:"reputation"`
+	TierBudget        int          `json:"tierBudget"`
+	OfficeLevel       int          `json:"officeLevel"`
+	CompanyBuffs      companyBuffs `json:"companyBuffs"`
+	ProjectsCompleted int          `json:"projectsCompleted"`
+	ProjectsFailed    int          `json:"projectsFailed"`
+	BankruptCountdown int          `json:"bankruptCountdown"`
+	TutorialStep      int          `json:"tutorialStep"`
+	Clients           []project    `json:"clients"`
+	Staff             []dog        `json:"staff"`
 	Log               []json.RawMessage `json:"log"`
+}
+
+type companyBuffs struct {
+	SpeedBoost    int `json:"speedBoost"`
+	QualityBoost  int `json:"qualityBoost"`
+	TeamworkBoost int `json:"teamworkBoost"`
+	CharismaBoost int `json:"charismaBoost"`
+	Decor         int `json:"decor"`
+}
+
+type dogStats struct {
+	Speed    int `json:"speed"`
+	Quality  int `json:"quality"`
+	Teamwork int `json:"teamwork"`
+	Charisma int `json:"charisma"`
+}
+
+type dog struct {
+	ID      string   `json:"id"`
+	IsCEO   bool     `json:"isCEO"`
+	Stats   dogStats `json:"stats"`
+	Morale  int      `json:"morale"`
+	Fatigue int      `json:"fatigue"`
+	Loyalty int      `json:"loyalty"`
+}
+
+type project struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
 }
 
 type SaveHandler struct {
@@ -179,8 +231,8 @@ func (handler *SaveHandler) Delete(ctx context.Context, uid uuid.UUID) tool.Comm
 }
 
 var (
-	errSaveConflict  = errors.New("save conflict")
-	errSanityFailed  = errors.New("sanity failed")
+	errSaveConflict = errors.New("save conflict")
+	errSanityFailed = errors.New("sanity failed")
 )
 
 func sanityCheck(d *saveDataForCheck) error {
@@ -190,29 +242,94 @@ func sanityCheck(d *saveDataForCheck) error {
 	if d.Money < 0 {
 		return fmt.Errorf("money must be >= 0 (got %d)", d.Money)
 	}
-	if d.Morale < 0 || d.Morale > 100 {
-		return fmt.Errorf("morale must be in [0,100] (got %d)", d.Morale)
+	if d.Reputation < 0 || d.Reputation > 100 {
+		return fmt.Errorf("reputation must be in [0,100] (got %d)", d.Reputation)
 	}
-	if d.Health < 0 || d.Health > 100 {
-		return fmt.Errorf("health must be in [0,100] (got %d)", d.Health)
+	if d.TierBudget < 0 {
+		return fmt.Errorf("tierBudget must be >= 0 (got %d)", d.TierBudget)
 	}
-	if d.OfficeLevel < 0 {
-		return fmt.Errorf("officeLevel must be >= 0 (got %d)", d.OfficeLevel)
+	if d.OfficeLevel < 0 || d.OfficeLevel > MaxOfficeLevel {
+		return fmt.Errorf("officeLevel must be in [0,%d] (got %d)", MaxOfficeLevel, d.OfficeLevel)
 	}
-	if d.ProductivityBoost < 0 {
-		return fmt.Errorf("productivityBoost must be >= 0 (got %d)", d.ProductivityBoost)
+	if d.ProjectsCompleted < 0 {
+		return fmt.Errorf("projectsCompleted must be >= 0 (got %d)", d.ProjectsCompleted)
 	}
-	if d.StabilityBoost < 0 {
-		return fmt.Errorf("stabilityBoost must be >= 0 (got %d)", d.StabilityBoost)
+	if d.ProjectsFailed < 0 {
+		return fmt.Errorf("projectsFailed must be >= 0 (got %d)", d.ProjectsFailed)
 	}
-	if d.TrainingBoost < 0 {
-		return fmt.Errorf("trainingBoost must be >= 0 (got %d)", d.TrainingBoost)
+	if d.BankruptCountdown < 0 || d.BankruptCountdown > MaxBankrupt {
+		return fmt.Errorf("bankruptCountdown must be in [0,%d] (got %d)", MaxBankrupt, d.BankruptCountdown)
 	}
-	if d.TutorialStep < 0 || d.TutorialStep > 7 {
-		return fmt.Errorf("tutorialStep must be in [0,7] (got %d)", d.TutorialStep)
+	if d.TutorialStep < 0 || d.TutorialStep > MaxTutorialStep {
+		return fmt.Errorf("tutorialStep must be in [0,%d] (got %d)", MaxTutorialStep, d.TutorialStep)
+	}
+	if err := checkBuffs(&d.CompanyBuffs); err != nil {
+		return err
 	}
 	if len(d.Log) > LogMaxEntries {
 		return fmt.Errorf("log must have <= %d entries (got %d)", LogMaxEntries, len(d.Log))
+	}
+	if len(d.Clients) > MaxClients {
+		return fmt.Errorf("clients must have <= %d entries (got %d)", MaxClients, len(d.Clients))
+	}
+	for i, p := range d.Clients {
+		if _, ok := validProjectStatus[p.Status]; !ok {
+			return fmt.Errorf("clients[%d].status %q is not a valid enum", i, p.Status)
+		}
+	}
+	maxStaff := officeMaxStaff[d.OfficeLevel] + 2
+	if len(d.Staff) > maxStaff {
+		return fmt.Errorf("staff length %d exceeds cap %d for officeLevel=%d", len(d.Staff), maxStaff, d.OfficeLevel)
+	}
+	for i, dg := range d.Staff {
+		if dg.IsCEO {
+			continue
+		}
+		if err := checkDog(i, &dg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkBuffs(b *companyBuffs) error {
+	if b.SpeedBoost < 0 {
+		return fmt.Errorf("companyBuffs.speedBoost must be >= 0 (got %d)", b.SpeedBoost)
+	}
+	if b.QualityBoost < 0 {
+		return fmt.Errorf("companyBuffs.qualityBoost must be >= 0 (got %d)", b.QualityBoost)
+	}
+	if b.TeamworkBoost < 0 {
+		return fmt.Errorf("companyBuffs.teamworkBoost must be >= 0 (got %d)", b.TeamworkBoost)
+	}
+	if b.CharismaBoost < 0 {
+		return fmt.Errorf("companyBuffs.charismaBoost must be >= 0 (got %d)", b.CharismaBoost)
+	}
+	if b.Decor < 0 {
+		return fmt.Errorf("companyBuffs.decor must be >= 0 (got %d)", b.Decor)
+	}
+	return nil
+}
+
+func checkDog(i int, dg *dog) error {
+	for name, v := range map[string]int{
+		"speed":    dg.Stats.Speed,
+		"quality":  dg.Stats.Quality,
+		"teamwork": dg.Stats.Teamwork,
+		"charisma": dg.Stats.Charisma,
+	} {
+		if v < MinDogStat || v > MaxDogStat {
+			return fmt.Errorf("staff[%d].stats.%s must be in [%d,%d] (got %d)", i, name, MinDogStat, MaxDogStat, v)
+		}
+	}
+	for name, v := range map[string]int{
+		"morale":  dg.Morale,
+		"fatigue": dg.Fatigue,
+		"loyalty": dg.Loyalty,
+	} {
+		if v < 0 || v > 100 {
+			return fmt.Errorf("staff[%d].%s must be in [0,100] (got %d)", i, name, v)
+		}
 	}
 	return nil
 }
@@ -224,6 +341,9 @@ func monotonicCheck(d *saveDataForCheck, prevRaw []byte) (string, bool) {
 	}
 	if d.Day < prev.Day {
 		return fmt.Sprintf("day cannot decrease (new=%d, prev=%d)", d.Day, prev.Day), false
+	}
+	if d.ProjectsCompleted < prev.ProjectsCompleted {
+		return fmt.Sprintf("projectsCompleted cannot decrease (new=%d, prev=%d)", d.ProjectsCompleted, prev.ProjectsCompleted), false
 	}
 	return "", true
 }

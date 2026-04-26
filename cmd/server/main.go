@@ -105,10 +105,9 @@ func main() {
 	authed.GET("/auth/me", userCtrl.Me)
 
 	authed.GET("/saves", saveCtrl.Get)
-	authed.POST("/saves", tool.MaxBodySize(64*1024), saveCtrl.Upsert)
+	authed.POST("/saves", tool.MaxBodySize(128*1024), saveCtrl.Upsert)
 	authed.DELETE("/saves", saveCtrl.Delete)
 
-	authed.GET("/leaderboard/me", leaderboardCtrl.ListMine)
 	authed.POST("/leaderboard", leaderboardCtrl.Submit)
 
 	srv := &http.Server{

@@ -297,14 +297,14 @@
         },
         "/leaderboard": {
             "get": {
-                "description": "Returns top entries sorted by days ASC, then money DESC. Auth is optional — if a valid Bearer token is provided and the user has any entry for this goal, the response also includes my_best with the user's best entry and global rank. Default goal=50000, default limit=10 (max 50).",
+                "description": "Returns top entries sorted by days ASC, money DESC, projects_completed DESC. Auth is optional — if a valid Bearer token is provided and the user has any entry for this goal, the response also includes me with the user's best entry and global rank. Default goal=50000, default limit=10 (max 50).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "leaderboard"
                 ],
-                "summary": "Get leaderboard top N",
+                "summary": "Get leaderboard top N (+ caller's me when authed)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -352,7 +352,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Records a race-to-target completion. Nickname is taken from the authenticated user's account (client cannot spoof). Duplicate submissions (same user+goal+days+money within 1 minute) are silently deduplicated and return the existing entry.",
+                "description": "Records an IPO completion. Nickname is taken from the authenticated user's account (client cannot spoof). Duplicate submissions (same user+goal+days+money+projects_completed within 1 minute) are silently deduplicated and return the existing entry.",
                 "consumes": [
                     "application/json"
                 ],
@@ -397,69 +397,6 @@
                         "description": "bad payload / sanity failed",
                         "schema": {
                             "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "missing / invalid / expired token",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/leaderboard/me": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Returns the authenticated user's own entries sorted by submitted_at DESC. Optional goal filter. Default limit=20 (max 50).",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "leaderboard"
-                ],
-                "summary": "Get my leaderboard history",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "max entries (default 20, max 50)",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "goal filter; omit for all goals",
-                        "name": "goal",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_leosu-cela_dog-company_pkg_tool.CommonResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_leaderboard.ListMineOutput"
-                                        }
-                                    }
-                                }
-                            ]
                         }
                     },
                     "401": {
@@ -681,6 +618,9 @@
                 "office_level": {
                     "type": "integer"
                 },
+                "projects_completed": {
+                    "type": "integer"
+                },
                 "staff_count": {
                     "type": "integer"
                 },
@@ -689,17 +629,6 @@
                 },
                 "user_id": {
                     "type": "integer"
-                }
-            }
-        },
-        "internal_leaderboard.ListMineOutput": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_leaderboard.EntryOutput"
-                    }
                 }
             }
         },
@@ -712,12 +641,12 @@
                         "$ref": "#/definitions/internal_leaderboard.EntryOutput"
                     }
                 },
-                "my_best": {
-                    "$ref": "#/definitions/internal_leaderboard.MyBest"
+                "me": {
+                    "$ref": "#/definitions/internal_leaderboard.Me"
                 }
             }
         },
-        "internal_leaderboard.MyBest": {
+        "internal_leaderboard.Me": {
             "type": "object",
             "properties": {
                 "entry": {
@@ -765,6 +694,10 @@
                 "office_level": {
                     "type": "integer",
                     "example": 4
+                },
+                "projects_completed": {
+                    "type": "integer",
+                    "example": 32
                 },
                 "staff_count": {
                     "type": "integer",
@@ -819,7 +752,7 @@
                 },
                 "version": {
                     "type": "integer",
-                    "example": 1
+                    "example": 2
                 }
             }
         },

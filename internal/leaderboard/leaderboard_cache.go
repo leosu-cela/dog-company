@@ -7,7 +7,7 @@ import (
 )
 
 // ListCache caches the result of repo.List(goal, limit).
-// my_best is per-user and therefore intentionally not cached.
+// Per-user lookups (ListMine) are intentionally not cached.
 // Submit invalidates the whole cache (cheap: small map, rare writes).
 type ListCache struct {
 	mu      sync.RWMutex
