@@ -86,11 +86,12 @@
 |---|---|---|---|
 | `day` | int | ≥1 | 遊戲第幾天 |
 | `money` | int | ≥0 | 資金 |
-| `reputation` | int | 0-100 | **信譽**（v2 新欄位，取代舊 health）|
+| `reputation` | number | 0-100 | **信譽**（v2 新欄位，取代舊 health；可為小數，如 +0.5）|
 | `tierBudget` | int | ≥0 | 案件稀有度預算（每天 morning 會由 client 重算）|
 | `companyBuffs` | object | — | 公司全域 buff（見下） |
-| `officeLevel` | int | 0-4 | 辦公室等級 |
-| `purchases` | object | — | 商品 id → 購買次數，如 `{ "snack": 3 }` |
+| `officeLevel` | int | 0-4 | 辦公室等級（容量 / IPO 條件用）|
+| `officeSkin` | int | 0-officeLevel | 辦公室視覺造型（玩家可在已解鎖等級之間切換）；舊存檔缺此欄位視為 `officeLevel` |
+| `purchases` | object | — | 商品 id → 購買次數（=等級，最高 5），如 `{ "snack": 3 }` |
 
 #### `companyBuffs` 子物件
 
@@ -182,15 +183,23 @@
 | `id` | string | — | 唯一識別 |
 | `stats` | object | speed/quality/teamwork/charisma 各 1-10 | 4 維能力值（**v2 從 productivity/morale/stability/revenue 改成此 4 維**）|
 | `grade` | string | `S` / `A` / `B` / `C` / `D` | CEO 不算 grade |
-| `morale` | number | 0-100 | 個人士氣（**v2 從全公司 morale 改成個人**；可為小數）|
-| `fatigue` | number | 0-100 | 疲勞（可為小數）|
-| `loyalty` | number | 0-100 | 忠誠度（防挖角護盾；可為小數，如每日 +0.5）|
+| `morale` | int | 0-100 | 個人士氣（**v2 從全公司 morale 改成個人**）|
+| `fatigue` | int | 0-100 | 疲勞 |
+| `loyalty` | int | 0-100 | 忠誠度（防挖角護盾）|
 | `experience` | int | ≥0 | 累積經驗，達門檻自動升 grade |
 | `assignedProjectId` | string \| null | — | 目前指派到的案 id |
 | `daysAtCompany` | int | ≥0 | 在公司天數（自然累積 loyalty）|
 | `unhappyLeaveDays` | int | ≥0 | 連續被拒請假次數（連 3 次自動離職）|
+| `onLeaveDay` | int \| null | — | 准假當天的 day 編號；該日該員工 0 貢獻；隔天 runProjectsDay 自動清空 |
 | `learnedTraits` | array of string | — | 已習得特性 id 列表（升級時 +1）；舊存檔缺此欄位視為 `[]` |
-| `pendingTraitChoice` | object \| null | — | 升級後待選的 3 個特性 id；玩家挑完歸 null。結構：`{ "choices": ["overtime","mentor","social"] }` |
+| `pendingTraitChoice` | object \| null | — | 待選 3 個特性。結構：`{ "choices": [...], "roundsLeft": 1 }`。`roundsLeft > 1` 代表選完還會接下一輪（S 直接面試會給 2 輪） |
+
+**特性發放規則**（前端控制，後端只負責存）：
+- 升級 D→C / C→B：不發特性
+- 升級 B→A：1 輪選擇（roundsLeft=1）
+- 升級 A→S：1 輪選擇
+- 直接面試 A 級：1 輪選擇
+- 直接面試 S 級：2 輪選擇（roundsLeft=2，第一輪選完自動進第二輪）
 
 **`learnedTraits` 與 `pendingTraitChoice` 的 trait id 列舉**：`overtime` / `perfectionist` / `mentor` / `haggler` / `ironHeart` / `catalyst` / `enduring` / `social`。後端不需驗證 id 是否在列舉內（前端控制），但建議陣列長度 ≤ 8。
 

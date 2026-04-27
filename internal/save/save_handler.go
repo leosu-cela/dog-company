@@ -71,7 +71,7 @@ type ConflictData struct {
 type saveDataForCheck struct {
 	Day               int          `json:"day"`
 	Money             int          `json:"money"`
-	Reputation        int          `json:"reputation"`
+	Reputation        float64      `json:"reputation"`
 	TierBudget        int          `json:"tierBudget"`
 	OfficeLevel       int          `json:"officeLevel"`
 	CompanyBuffs      companyBuffs `json:"companyBuffs"`
@@ -248,7 +248,7 @@ func sanityCheck(d *saveDataForCheck) error {
 		return fmt.Errorf("money must be >= 0 (got %d)", d.Money)
 	}
 	if d.Reputation < 0 || d.Reputation > 100 {
-		return fmt.Errorf("reputation must be in [0,100] (got %d)", d.Reputation)
+		return fmt.Errorf("reputation must be in [0,100] (got %g)", d.Reputation)
 	}
 	if d.TierBudget < 0 {
 		return fmt.Errorf("tierBudget must be >= 0 (got %d)", d.TierBudget)
