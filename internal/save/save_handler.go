@@ -22,7 +22,7 @@ const (
 	MaxTutorialStep   = 7
 	MaxOfficeLevel    = 4
 	MinDogStat        = 1
-	MaxDogStat        = 10
+	MaxDogStat        = 30
 	MaxLoanRepayDays  = 80
 )
 
