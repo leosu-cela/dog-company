@@ -24,11 +24,8 @@ const (
 	MinDogStat        = 1
 	MaxDogStat        = 30
 	MaxLoanRepayDays  = 80
+	MaxStaff          = 100
 )
-
-// officeMaxStaff[level] is the soft staff cap; we allow +2 slack as the spec
-// says, so reject only when staff count exceeds the slack.
-var officeMaxStaff = [...]int{3, 5, 7, 9, 12}
 
 var validProjectStatus = map[string]struct{}{
 	"offered": {},
@@ -285,9 +282,8 @@ func sanityCheck(d *saveDataForCheck) error {
 			return fmt.Errorf("clients[%d].status %q is not a valid enum", i, p.Status)
 		}
 	}
-	maxStaff := officeMaxStaff[d.OfficeLevel] + 2
-	if len(d.Staff) > maxStaff {
-		return fmt.Errorf("staff length %d exceeds cap %d for officeLevel=%d", len(d.Staff), maxStaff, d.OfficeLevel)
+	if len(d.Staff) > MaxStaff {
+		return fmt.Errorf("staff length must be <= %d (got %d)", MaxStaff, len(d.Staff))
 	}
 	for i, dg := range d.Staff {
 		if dg.IsCEO {
