@@ -15,18 +15,16 @@ import (
 )
 
 const (
-	DefaultGoal       = 50000
-	DefaultLimit      = 10
-	MaxLimit          = 50
-	MaxDays           = 365
-	MinOfficeLevel    = 3
-	MaxOfficeLevel    = 4
-	MaxStaffCount     = 50
-	MinProjectsForIPO = 30
-	MaxProjects       = 365 * 3
-	MoneyMultiplier   = 5
-	DedupeWindow      = time.Minute
-	ListCacheTTL      = 30 * time.Minute
+	DefaultGoal     = 50000
+	DefaultLimit    = 10
+	MaxLimit        = 50
+	MaxDays         = 365 * 5
+	MaxOfficeLevel  = 4
+	MaxStaffCount   = 100
+	MaxProjects     = 365 * 3
+	MoneyMultiplier = 5
+	DedupeWindow    = time.Minute
+	ListCacheTTL    = 30 * time.Minute
 )
 
 var allowedGoals = map[int]struct{}{50000: {}}
@@ -34,7 +32,7 @@ var allowedGoals = map[int]struct{}{50000: {}}
 type SubmitPayload struct {
 	Days              int `json:"days"               binding:"required" example:"58"`
 	Money             int `json:"money"              binding:"required" example:"52340"`
-	Goal              int `json:"goal"               binding:"required" example:"50000"`
+	Goal              int `json:"goal"               example:"50000"`
 	OfficeLevel       int `json:"office_level"       example:"4"`
 	StaffCount        int `json:"staff_count"        example:"9"`
 	ProjectsCompleted int `json:"projects_completed" example:"32"`
@@ -249,6 +247,9 @@ func toEntryOutput(e *Entry) EntryOutput {
 }
 
 func sanityCheck(p *SubmitPayload) error {
+	if p.Goal == 0 {
+		p.Goal = DefaultGoal
+	}
 	if p.Days < 1 || p.Days > MaxDays {
 		return fmt.Errorf("days must be in [1,%d] (got %d)", MaxDays, p.Days)
 	}
@@ -261,17 +262,14 @@ func sanityCheck(p *SubmitPayload) error {
 	if p.Money > p.Goal*MoneyMultiplier {
 		return fmt.Errorf("money suspiciously high (money=%d, max=%d)", p.Money, p.Goal*MoneyMultiplier)
 	}
-	if p.OfficeLevel < MinOfficeLevel || p.OfficeLevel > MaxOfficeLevel {
-		return fmt.Errorf("office_level must be in [%d,%d] (got %d)", MinOfficeLevel, MaxOfficeLevel, p.OfficeLevel)
+	if p.OfficeLevel < 0 || p.OfficeLevel > MaxOfficeLevel {
+		return fmt.Errorf("office_level must be in [0,%d] (got %d)", MaxOfficeLevel, p.OfficeLevel)
 	}
 	if p.StaffCount < 0 || p.StaffCount > MaxStaffCount {
 		return fmt.Errorf("staff_count must be in [0,%d] (got %d)", MaxStaffCount, p.StaffCount)
 	}
-	if p.ProjectsCompleted < MinProjectsForIPO {
-		return fmt.Errorf("projects_completed must be >= %d (got %d)", MinProjectsForIPO, p.ProjectsCompleted)
-	}
-	if p.ProjectsCompleted > MaxProjects {
-		return fmt.Errorf("projects_completed must be <= %d (got %d)", MaxProjects, p.ProjectsCompleted)
+	if p.ProjectsCompleted < 0 || p.ProjectsCompleted > MaxProjects {
+		return fmt.Errorf("projects_completed must be in [0,%d] (got %d)", MaxProjects, p.ProjectsCompleted)
 	}
 	return nil
 }
