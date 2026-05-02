@@ -26,6 +26,7 @@ const (
 	MaxStaffCount   = 100
 	MaxProjects     = 365 * 3
 	MoneyMultiplier = 5
+	MoneyPerDayCap  = 2000
 	DedupeWindow    = time.Minute
 	ListCacheTTL    = 30 * time.Minute
 
@@ -273,8 +274,9 @@ func sanityCheck(p *SubmitPayload) error {
 	if p.Money < p.Goal {
 		return fmt.Errorf("money must be >= goal (money=%d, goal=%d)", p.Money, p.Goal)
 	}
-	if p.Money > p.Goal*MoneyMultiplier {
-		return fmt.Errorf("money suspiciously high (money=%d, max=%d)", p.Money, p.Goal*MoneyMultiplier)
+	moneyMax := p.Goal*MoneyMultiplier + p.Days*MoneyPerDayCap
+	if p.Money > moneyMax {
+		return fmt.Errorf("money suspiciously high (money=%d, max=%d)", p.Money, moneyMax)
 	}
 	if p.OfficeLevel < 0 || p.OfficeLevel > MaxOfficeLevel {
 		return fmt.Errorf("office_level must be in [0,%d] (got %d)", MaxOfficeLevel, p.OfficeLevel)

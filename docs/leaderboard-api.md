@@ -62,9 +62,9 @@
 | `days` | int, ≥1 | IPO 達成時的 day 數（**主排序鍵**）|
 | `money` | int, ≥0 | 達成時資金 |
 | `goal` | int | 目標金額（固定 50000）|
-| `office_level` | int, 0-4 | 達成時辦公室等級（≥3 才可達 IPO）|
-| `staff_count` | int, ≥0 | 達成時員工數 |
-| `projects_completed` | int, ≥30 | **完成案件累計數（v2 新增；IPO 條件之一）**|
+| `office_level` | int, 0-4 | 達成時辦公室等級 |
+| `staff_count` | int, 0-100 | 達成時員工數 |
+| `projects_completed` | int, ≥0 | 完成案件累計數 |
 | `submitted_at` | ISO string | server 紀錄時間 |
 
 ### SubmitPayload（POST 請求 body）
@@ -182,14 +182,13 @@
 
 ## Sanity Check（POST 時）
 
-- `days >= 1`、`days <= 365`
+- `days >= 1`、`days <= 365 * 5`（長局也接受）
 - `money >= goal`（達不到 $50k 不能提交）
-- `money <= goal * 5`（v2 後期單筆 tier5 案 $1900~2600，整局可累到 $250k+，上限放寬到 5 倍）
-- `goal` 限定白名單：目前只接受 `50000`
-- `office_level` ∈ [3, 4]（IPO 條件要求 ≥ Lv3，所以 0~2 直接 reject）
-- `staff_count` ∈ [0, 50]
-- **`projects_completed >= 30`**（IPO 條件要求 ≥30 完成案，否則 reject）
-- `projects_completed <= 365 * 3`（一天最多平均 3 案）
+- `money <= goal * 5 + days * 2000`（基底 $250k + 每天 $2000 線性放寬，避免長局玩家撞牆；對應 `MoneyMultiplier=5`、`MoneyPerDayCap=2000`）
+- `goal` 限定白名單：目前只接受 `50000`（payload 缺欄位時 server 自動補 `50000`）
+- `office_level` ∈ [0, 4]（對齊 saves spec，不再強制 ≥3）
+- `staff_count` ∈ [0, 100]（對齊 saves staff cap）
+- `projects_completed` ∈ [0, 365 * 3]（不再強制 ≥30）
 - **`company_name`**（v6 新增）：
   - trim 後 rune count ∈ [2, 8]
   - 字元白名單：`[\p{Han}A-Za-z0-9 ]`（CJK + 英數 + ASCII 空白）
