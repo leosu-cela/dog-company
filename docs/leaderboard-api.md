@@ -2,7 +2,7 @@
 
 本文件描述 `dog-company` 後端排行榜端點。v2 接案制改用 **IPO 上市**作為勝利條件，排行榜記錄 IPO 達成時的天數、資金、辦公室、員工數、**完成案件數**。
 
-> 規格版本：draft-5（2026-04-26，移除 `GET /leaderboard/me`，個人最佳改由 `GET /leaderboard` 的 `me` 欄位提供）
+> 規格版本：draft-6（2026-05-02，新增 `company_name` 欄位作為顯示名；`nickname` 仍寫入帳號但前端不再使用）
 > 基準 API base：`https://dog-company-production.up.railway.app/api/v1`
 
 ---
@@ -42,6 +42,7 @@
   "id": 42,
   "user_id": 7,
   "nickname": "leosu",
+  "company_name": "旺財事務所",
   "days": 58,
   "money": 52340,
   "goal": 50000,
@@ -56,7 +57,8 @@
 |------|------|------|
 | `id` | int | 資料庫流水號（server 產生） |
 | `user_id` | int | 提交者 user.id |
-| `nickname` | string | 顯示名稱。server 直接用 `users.account` 填入 |
+| `nickname` | string | 帳號（server 用 `users.account` 填）。**v6 起前端不再用作顯示**，欄位保留但不主動呈現 |
+| `company_name` | string | **v6 新增**：玩家自訂的公司名（顯示來源）。長度 2-8 字元（rune count），白名單 CJK + 英數 + 空白 |
 | `days` | int, ≥1 | IPO 達成時的 day 數（**主排序鍵**）|
 | `money` | int, ≥0 | 達成時資金 |
 | `goal` | int | 目標金額（固定 50000）|
@@ -74,11 +76,13 @@
   "goal": 50000,
   "office_level": 4,
   "staff_count": 9,
-  "projects_completed": 32
+  "projects_completed": 32,
+  "company_name": "旺財事務所"
 }
 ```
 
 `user_id` / `nickname` / `submitted_at` / `id` **不由客端提交**，server 自行填入。
+`company_name` 客端必填；server 會做 sanity check（長度、白名單、髒話）。
 
 ---
 
@@ -186,6 +190,10 @@
 - `staff_count` ∈ [0, 50]
 - **`projects_completed >= 30`**（IPO 條件要求 ≥30 完成案，否則 reject）
 - `projects_completed <= 365 * 3`（一天最多平均 3 案）
+- **`company_name`**（v6 新增）：
+  - trim 後 rune count ∈ [2, 8]
+  - 字元白名單：`[\p{Han}A-Za-z0-9 ]`（CJK + 英數 + ASCII 空白）
+  - 不得含髒話清單（後端 `internal/leaderboard/profanity.go` 維護，獨立於前端清單）
 - 同 `user_id + goal + days + money + projects_completed` 組合 1 分鐘內重複送 → dedupe（靜默成功）
 
 不過 → **400**，message 指明欄位。
@@ -201,6 +209,7 @@ CREATE TABLE leaderboard_entries (
   id                  BIGSERIAL PRIMARY KEY,
   user_id             BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   nickname            VARCHAR(64) NOT NULL,
+  company_name        VARCHAR(32) NULL,        -- v6 起；舊資料為 NULL，前端 fallback「未命名公司」
   days                INT NOT NULL,
   money               INT NOT NULL,
   goal                INT NOT NULL,

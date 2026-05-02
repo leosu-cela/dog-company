@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -25,23 +28,32 @@ const (
 	MoneyMultiplier = 5
 	DedupeWindow    = time.Minute
 	ListCacheTTL    = 30 * time.Minute
+
+	CompanyNameMinRunes = 2
+	CompanyNameMaxRunes = 8
 )
 
 var allowedGoals = map[int]struct{}{50000: {}}
 
+// 白名單：CJK Unified Ideographs (基本平面 + 擴展) + 英數 + ASCII 空白。
+// 與前端 src/lib/companyName.ts 對齊。
+var companyNameRe = regexp.MustCompile(`^[\p{Han}A-Za-z0-9 ]+$`)
+
 type SubmitPayload struct {
-	Days              int `json:"days"               binding:"required" example:"58"`
-	Money             int `json:"money"              binding:"required" example:"52340"`
-	Goal              int `json:"goal"               example:"50000"`
-	OfficeLevel       int `json:"office_level"       example:"4"`
-	StaffCount        int `json:"staff_count"        example:"9"`
-	ProjectsCompleted int `json:"projects_completed" example:"32"`
+	Days              int    `json:"days"               binding:"required" example:"58"`
+	Money             int    `json:"money"              binding:"required" example:"52340"`
+	Goal              int    `json:"goal"               example:"50000"`
+	OfficeLevel       int    `json:"office_level"       example:"4"`
+	StaffCount        int    `json:"staff_count"        example:"9"`
+	ProjectsCompleted int    `json:"projects_completed" example:"32"`
+	CompanyName       string `json:"company_name"       example:"旺財事務所"`
 }
 
 type EntryOutput struct {
 	ID                uint64    `json:"id"`
 	UserID            uint64    `json:"user_id"`
-	Nickname          string    `json:"nickname"`
+	Nickname          string    `json:"nickname"`     // 保留欄位（=帳號）；新版前端不再使用
+	CompanyName       string    `json:"company_name"` // 玩家自訂公司名（v6 起；舊資料為空字串）
 	Days              int       `json:"days"`
 	Money             int       `json:"money"`
 	Goal              int       `json:"goal"`
@@ -180,6 +192,7 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 			e := &Entry{
 				UserID:            u.ID,
 				Nickname:          u.Account,
+				CompanyName:       strings.TrimSpace(payload.CompanyName),
 				Days:              payload.Days,
 				Money:             payload.Money,
 				Goal:              payload.Goal,
@@ -236,6 +249,7 @@ func toEntryOutput(e *Entry) EntryOutput {
 		ID:                e.ID,
 		UserID:            e.UserID,
 		Nickname:          e.Nickname,
+		CompanyName:       e.CompanyName,
 		Days:              e.Days,
 		Money:             e.Money,
 		Goal:              e.Goal,
@@ -270,6 +284,32 @@ func sanityCheck(p *SubmitPayload) error {
 	}
 	if p.ProjectsCompleted < 0 || p.ProjectsCompleted > MaxProjects {
 		return fmt.Errorf("projects_completed must be in [0,%d] (got %d)", MaxProjects, p.ProjectsCompleted)
+	}
+	if err := validateCompanyName(p.CompanyName); err != nil {
+		return err
+	}
+	p.CompanyName = strings.TrimSpace(p.CompanyName)
+	return nil
+}
+
+// validateCompanyName 比照前端規則：trim 後 2-8 字元（rune count）、白名單字元、無髒話。
+func validateCompanyName(raw string) error {
+	name := strings.TrimSpace(raw)
+	if name == "" {
+		return fmt.Errorf("company_name is required")
+	}
+	n := utf8.RuneCountInString(name)
+	if n < CompanyNameMinRunes {
+		return fmt.Errorf("company_name must be at least %d characters (got %d)", CompanyNameMinRunes, n)
+	}
+	if n > CompanyNameMaxRunes {
+		return fmt.Errorf("company_name must be at most %d characters (got %d)", CompanyNameMaxRunes, n)
+	}
+	if !companyNameRe.MatchString(name) {
+		return fmt.Errorf("company_name contains disallowed characters")
+	}
+	if containsProfanity(name) {
+		return fmt.Errorf("company_name contains forbidden words")
 	}
 	return nil
 }

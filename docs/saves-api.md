@@ -2,7 +2,7 @@
 
 本文件描述 `dog-company` 後端**重寫**後的存檔端點。極簡版：一人一份 current save，不做歷代封存。
 
-> 規格版本：draft-8（2026-04-27，Dog 補 `learnedTraits` / `pendingTraitChoice` 升級特性欄位）
+> 規格版本：draft-9（2026-05-02，data 加 `companyName` 欄位）
 > 基準 API base：`https://dog-company-production.up.railway.app/api/v1`
 
 > ⚠️ **v1 與 v2 不相容**。v1 存檔被棄用，伺服器收到 `version === 1` 的舊存檔可直接視為無效（前端 client 會在 `migrate()` 回 `null`，玩家從新狀態開始）。
@@ -84,6 +84,7 @@
 
 | 欄位 | 型別 | 範圍 | 說明 |
 |---|---|---|---|
+| `companyName` | string, optional | 2-8 字元 | **v6 新增**：玩家自訂公司名。空字串代表尚未命名（玩家下次按「開始經營」會被導向命名 modal）。同帳號一次定終身 |
 | `day` | int | ≥1 | 遊戲第幾天 |
 | `money` | int | ≥0 | 資金 |
 | `reputation` | number | 0-100 | **信譽**（v2 新欄位，取代舊 health；可為小數，如 +0.5）|
