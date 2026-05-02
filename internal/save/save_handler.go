@@ -42,11 +42,15 @@ var validProjectStatus = map[string]struct{}{
 }
 
 var validToolGrade = map[string]struct{}{
-	"S": {}, "A": {}, "B": {},
+	"S": {}, "A": {}, "B": {}, "U": {},
 }
 
 var validToolCategory = map[string]struct{}{
 	"tech": {}, "design": {}, "marketing": {}, "service": {},
+}
+
+var validToolCategoryExtra = map[string]struct{}{
+	"CEO": {},
 }
 
 // SavePayload is the POST /saves request body.
@@ -376,7 +380,9 @@ func checkTool(i int, t *tool_) error {
 		return fmt.Errorf("tools[%d].grade %q is not a valid enum", i, t.Grade)
 	}
 	if _, ok := validToolCategory[t.Category]; !ok {
-		return fmt.Errorf("tools[%d].category %q is not a valid enum", i, t.Category)
+		if _, ok2 := validToolCategoryExtra[t.Category]; !ok2 {
+			return fmt.Errorf("tools[%d].category %q is not a valid enum", i, t.Category)
+		}
 	}
 	if t.SpeedBoost < 0 || t.SpeedBoost > MaxToolBoost {
 		return fmt.Errorf("tools[%d].speedBoost must be in [0,%g] (got %g)", i, MaxToolBoost, t.SpeedBoost)
