@@ -105,7 +105,7 @@ func main() {
 	authed.GET("/auth/me", userCtrl.Me)
 
 	authed.GET("/saves", saveCtrl.Get)
-	authed.POST("/saves", tool.MaxBodySize(128*1024), saveCtrl.Upsert)
+	authed.POST("/saves", tool.MaxBodySize(192*1024), saveCtrl.Upsert)
 	authed.DELETE("/saves", saveCtrl.Delete)
 
 	authed.POST("/leaderboard", leaderboardCtrl.Submit)

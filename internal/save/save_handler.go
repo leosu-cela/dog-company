@@ -15,16 +15,22 @@ import (
 )
 
 const (
-	SupportedVersion = 2
-	LogMaxEntries    = 10
-	MaxClients       = 30
-	MaxBankrupt      = 5
-	MaxTutorialStep   = 7
-	MaxOfficeLevel    = 4
-	MinDogStat        = 1
-	MaxDogStat        = 30
-	MaxLoanRepayDays  = 80
-	MaxStaff          = 100
+	MinSupportedVersion = 2
+	MaxSupportedVersion = 3
+	LogMaxEntries       = 10
+	MaxClients          = 30
+	MaxBankrupt         = 5
+	MaxTutorialStep     = 7
+	MaxOfficeLevel      = 4
+	MinDogStat          = 1
+	MaxDogStat          = 30
+	MaxLoanRepayDays    = 80
+	MaxStaff            = 100
+	MaxTools            = 100
+	MaxToolTraits       = 4
+	MaxToolBoost        = 5.0
+	MaxAchievements     = 50
+	MaxCompanyNameLen   = 8
 )
 
 var validProjectStatus = map[string]struct{}{
@@ -33,6 +39,14 @@ var validProjectStatus = map[string]struct{}{
 	"done":    {},
 	"failed":  {},
 	"late":    {},
+}
+
+var validToolGrade = map[string]struct{}{
+	"S": {}, "A": {}, "B": {},
+}
+
+var validToolCategory = map[string]struct{}{
+	"tech": {}, "design": {}, "marketing": {}, "service": {},
 }
 
 // SavePayload is the POST /saves request body.
@@ -61,57 +75,99 @@ type ConflictData struct {
 	ServerData      json.RawMessage `json:"server_data" swaggertype:"object"`
 }
 
-// saveDataForCheck holds the v2 fields we validate. Unknown fields are
-// ignored; the raw JSON is stored intact. v1-only fields (morale/health/
-// productivityBoost/...) are not declared here, matching the spec's
-// "ignore deprecated fields" rule.
+// saveDataForCheck holds the fields we validate (v2 base + v3 extensions).
+// Unknown fields are ignored; the raw JSON is stored intact. v1-only fields
+// (morale/health/productivityBoost/...) are not declared, matching the spec's
+// "ignore deprecated fields" rule. v3-only fields are pointers/slices so a
+// missing v2 payload deserializes cleanly without tripping range checks.
 type saveDataForCheck struct {
-	Day               int          `json:"day"`
-	Money             int          `json:"money"`
-	Reputation        float64      `json:"reputation"`
-	TierBudget        int          `json:"tierBudget"`
-	OfficeLevel       int          `json:"officeLevel"`
-	CompanyBuffs      companyBuffs `json:"companyBuffs"`
-	ProjectsCompleted int          `json:"projectsCompleted"`
-	ProjectsFailed    int          `json:"projectsFailed"`
-	BankruptCountdown int          `json:"bankruptCountdown"`
-	TutorialStep      int          `json:"tutorialStep"`
-	LoanTaken         bool         `json:"loanTaken"`
-	LoanRepayDaysLeft int          `json:"loanRepayDaysLeft"`
-	Clients           []project    `json:"clients"`
-	Staff             []dog        `json:"staff"`
-	Log               []json.RawMessage `json:"log"`
+	Day                    int               `json:"day"`
+	Money                  int               `json:"money"`
+	Reputation             float64           `json:"reputation"`
+	TierBudget             int               `json:"tierBudget"`
+	OfficeLevel            int               `json:"officeLevel"`
+	OfficeSkin             *int              `json:"officeSkin"`
+	CompanyName            *string           `json:"companyName"`
+	CompanyBuffs           companyBuffs      `json:"companyBuffs"`
+	ProjectsCompleted      int               `json:"projectsCompleted"`
+	ProjectsFailed         int               `json:"projectsFailed"`
+	BankruptCountdown      int               `json:"bankruptCountdown"`
+	TutorialStep           int               `json:"tutorialStep"`
+	LoanTaken              bool              `json:"loanTaken"`
+	LoanRepayDaysLeft      int               `json:"loanRepayDaysLeft"`
+	Clients                []project         `json:"clients"`
+	Staff                  []dog             `json:"staff"`
+	Log                    []json.RawMessage `json:"log"`
+	Tools                  []tool_            `json:"tools"`
+	UnlockedAchievementIDs []string          `json:"unlockedAchievementIds"`
+	ClaimedStarterPack     bool              `json:"claimedStarterPack"`
 }
 
+// companyBuffs covers v2 (int) + v3 additions (number + optional sub-objects).
+// Boost fields are float64 so v3's fractional buffs (e.g. 0.5) survive the
+// round-trip; v2 ints decode into float64 without loss.
 type companyBuffs struct {
-	SpeedBoost    int `json:"speedBoost"`
-	QualityBoost  int `json:"qualityBoost"`
-	TeamworkBoost int `json:"teamworkBoost"`
-	CharismaBoost int `json:"charismaBoost"`
-	Decor         int `json:"decor"`
+	SpeedBoost           float64            `json:"speedBoost"`
+	QualityBoost         float64            `json:"qualityBoost"`
+	TeamworkBoost        float64            `json:"teamworkBoost"`
+	CharismaBoost        float64            `json:"charismaBoost"`
+	Decor                float64            `json:"decor"`
+	CategorySpeed        map[string]float64 `json:"categorySpeed"`
+	CategoryQuality      map[string]float64 `json:"categoryQuality"`
+	PatienceBoost        float64            `json:"patienceBoost"`
+	FatigueRecoveryBonus float64            `json:"fatigueRecoveryBonus"`
 }
 
+// dogStats: v2 has 4 dims; v3 adds patience as a 5th. Patience is a pointer
+// so missing-from-v2 doesn't trip the [1,10] range check.
 type dogStats struct {
-	Speed    int `json:"speed"`
-	Quality  int `json:"quality"`
-	Teamwork int `json:"teamwork"`
-	Charisma int `json:"charisma"`
+	Speed    int  `json:"speed"`
+	Quality  int  `json:"quality"`
+	Teamwork int  `json:"teamwork"`
+	Charisma int  `json:"charisma"`
+	Patience *int `json:"patience"`
 }
 
-// morale/fatigue/loyalty are floats — game logic applies fractional deltas
+// fatigue/loyalty are floats — game logic applies fractional deltas
 // (e.g. loyalty +0.5 per day at company). Stored as number, validated as range.
+// Note: v3 dropped Dog.morale entirely; ignore it on inbound (spec says don't
+// sanity-check it, since v3 clients never send it).
 type dog struct {
-	ID      string   `json:"id"`
-	IsCEO   bool     `json:"isCEO"`
-	Stats   dogStats `json:"stats"`
-	Morale  float64  `json:"morale"`
-	Fatigue float64  `json:"fatigue"`
-	Loyalty float64  `json:"loyalty"`
+	ID               string            `json:"id"`
+	IsCEO            bool              `json:"isCEO"`
+	Stats            dogStats          `json:"stats"`
+	Fatigue          float64           `json:"fatigue"`
+	Loyalty          float64           `json:"loyalty"`
+	Experience       int               `json:"experience"`
+	DaysAtCompany    int               `json:"daysAtCompany"`
+	UnhappyLeaveDays int               `json:"unhappyLeaveDays"`
+	LearnedTraits    []string          `json:"learnedTraits"`
+	RosterID         *string           `json:"rosterId"`
+	Level            *int              `json:"level"`
+	Fragments        int               `json:"fragments"`
+	Status           *string           `json:"status"`
+	PipDaysLeft      *int              `json:"pipDaysLeft"`
+	PipTasks         []json.RawMessage `json:"pipTasks"`
+	EquippedToolID   *string           `json:"equippedToolId"`
 }
 
 type project struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
+}
+
+// tool_ avoids colliding with the imported pkg/tool package name.
+type tool_ struct {
+	InstanceID   string   `json:"instanceId"`
+	DefID        string   `json:"defId"`
+	Name         string   `json:"name"`
+	IconName     string   `json:"iconName"`
+	Category     string   `json:"category"`
+	Grade        string   `json:"grade"`
+	SpeedBoost   float64  `json:"speedBoost"`
+	QualityBoost float64  `json:"qualityBoost"`
+	Traits       []string `json:"traits"`
+	ObtainedDay  int      `json:"obtainedDay"`
 }
 
 type SaveHandler struct {
@@ -147,8 +203,8 @@ func (handler *SaveHandler) Get(ctx context.Context, uid uuid.UUID) tool.CommonR
 func (handler *SaveHandler) Upsert(ctx context.Context, uid uuid.UUID, payload SavePayload) tool.CommonResponse {
 	group := "[SaveHandler@Upsert]"
 
-	if payload.Version != SupportedVersion {
-		return tool.Err(tool.CodeSaveUnsupportedVersion, fmt.Sprintf("unsupported version %d (server supports %d)", payload.Version, SupportedVersion))
+	if payload.Version < MinSupportedVersion || payload.Version > MaxSupportedVersion {
+		return tool.Err(tool.CodeSaveUnsupportedVersion, fmt.Sprintf("unsupported version %d (server supports %d-%d)", payload.Version, MinSupportedVersion, MaxSupportedVersion))
 	}
 
 	var data saveDataForCheck
@@ -253,6 +309,14 @@ func sanityCheck(d *saveDataForCheck) error {
 	if d.OfficeLevel < 0 || d.OfficeLevel > MaxOfficeLevel {
 		return fmt.Errorf("officeLevel must be in [0,%d] (got %d)", MaxOfficeLevel, d.OfficeLevel)
 	}
+	if d.OfficeSkin != nil {
+		if *d.OfficeSkin < 0 || *d.OfficeSkin > MaxOfficeLevel {
+			return fmt.Errorf("officeSkin must be in [0,%d] (got %d)", MaxOfficeLevel, *d.OfficeSkin)
+		}
+	}
+	if d.CompanyName != nil && len([]rune(*d.CompanyName)) > MaxCompanyNameLen {
+		return fmt.Errorf("companyName length must be <= %d runes (got %d)", MaxCompanyNameLen, len([]rune(*d.CompanyName)))
+	}
 	if d.ProjectsCompleted < 0 {
 		return fmt.Errorf("projectsCompleted must be >= 0 (got %d)", d.ProjectsCompleted)
 	}
@@ -293,46 +357,123 @@ func sanityCheck(d *saveDataForCheck) error {
 			return err
 		}
 	}
+	if len(d.Tools) > MaxTools {
+		return fmt.Errorf("tools length must be <= %d (got %d)", MaxTools, len(d.Tools))
+	}
+	for i, t := range d.Tools {
+		if err := checkTool(i, &t); err != nil {
+			return err
+		}
+	}
+	if len(d.UnlockedAchievementIDs) > MaxAchievements {
+		return fmt.Errorf("unlockedAchievementIds length must be <= %d (got %d)", MaxAchievements, len(d.UnlockedAchievementIDs))
+	}
+	return nil
+}
+
+func checkTool(i int, t *tool_) error {
+	if _, ok := validToolGrade[t.Grade]; !ok {
+		return fmt.Errorf("tools[%d].grade %q is not a valid enum", i, t.Grade)
+	}
+	if _, ok := validToolCategory[t.Category]; !ok {
+		return fmt.Errorf("tools[%d].category %q is not a valid enum", i, t.Category)
+	}
+	if t.SpeedBoost < 0 || t.SpeedBoost > MaxToolBoost {
+		return fmt.Errorf("tools[%d].speedBoost must be in [0,%g] (got %g)", i, MaxToolBoost, t.SpeedBoost)
+	}
+	if t.QualityBoost < 0 || t.QualityBoost > MaxToolBoost {
+		return fmt.Errorf("tools[%d].qualityBoost must be in [0,%g] (got %g)", i, MaxToolBoost, t.QualityBoost)
+	}
+	if len(t.Traits) > MaxToolTraits {
+		return fmt.Errorf("tools[%d].traits length must be <= %d (got %d)", i, MaxToolTraits, len(t.Traits))
+	}
 	return nil
 }
 
 func checkBuffs(b *companyBuffs) error {
-	if b.SpeedBoost < 0 {
-		return fmt.Errorf("companyBuffs.speedBoost must be >= 0 (got %d)", b.SpeedBoost)
+	for name, v := range map[string]float64{
+		"speedBoost":           b.SpeedBoost,
+		"qualityBoost":         b.QualityBoost,
+		"teamworkBoost":        b.TeamworkBoost,
+		"charismaBoost":        b.CharismaBoost,
+		"decor":                b.Decor,
+		"patienceBoost":        b.PatienceBoost,
+		"fatigueRecoveryBonus": b.FatigueRecoveryBonus,
+	} {
+		if v < 0 {
+			return fmt.Errorf("companyBuffs.%s must be >= 0 (got %g)", name, v)
+		}
 	}
-	if b.QualityBoost < 0 {
-		return fmt.Errorf("companyBuffs.qualityBoost must be >= 0 (got %d)", b.QualityBoost)
+	for k, v := range b.CategorySpeed {
+		if _, ok := validToolCategory[k]; !ok {
+			return fmt.Errorf("companyBuffs.categorySpeed has invalid category %q", k)
+		}
+		if v < 0 {
+			return fmt.Errorf("companyBuffs.categorySpeed[%s] must be >= 0 (got %g)", k, v)
+		}
 	}
-	if b.TeamworkBoost < 0 {
-		return fmt.Errorf("companyBuffs.teamworkBoost must be >= 0 (got %d)", b.TeamworkBoost)
-	}
-	if b.CharismaBoost < 0 {
-		return fmt.Errorf("companyBuffs.charismaBoost must be >= 0 (got %d)", b.CharismaBoost)
-	}
-	if b.Decor < 0 {
-		return fmt.Errorf("companyBuffs.decor must be >= 0 (got %d)", b.Decor)
+	for k, v := range b.CategoryQuality {
+		if _, ok := validToolCategory[k]; !ok {
+			return fmt.Errorf("companyBuffs.categoryQuality has invalid category %q", k)
+		}
+		if v < 0 {
+			return fmt.Errorf("companyBuffs.categoryQuality[%s] must be >= 0 (got %g)", k, v)
+		}
 	}
 	return nil
 }
 
 func checkDog(i int, dg *dog) error {
-	for name, v := range map[string]int{
+	stats := map[string]int{
 		"speed":    dg.Stats.Speed,
 		"quality":  dg.Stats.Quality,
 		"teamwork": dg.Stats.Teamwork,
 		"charisma": dg.Stats.Charisma,
-	} {
+	}
+	if dg.Stats.Patience != nil {
+		stats["patience"] = *dg.Stats.Patience
+	}
+	for name, v := range stats {
 		if v < MinDogStat || v > MaxDogStat {
 			return fmt.Errorf("staff[%d].stats.%s must be in [%d,%d] (got %d)", i, name, MinDogStat, MaxDogStat, v)
 		}
 	}
 	for name, v := range map[string]float64{
-		"morale":  dg.Morale,
 		"fatigue": dg.Fatigue,
 		"loyalty": dg.Loyalty,
 	} {
 		if v < 0 || v > 100 {
 			return fmt.Errorf("staff[%d].%s must be in [0,100] (got %g)", i, name, v)
+		}
+	}
+	for name, v := range map[string]int{
+		"experience":       dg.Experience,
+		"daysAtCompany":    dg.DaysAtCompany,
+		"unhappyLeaveDays": dg.UnhappyLeaveDays,
+		"fragments":        dg.Fragments,
+	} {
+		if v < 0 {
+			return fmt.Errorf("staff[%d].%s must be >= 0 (got %d)", i, name, v)
+		}
+	}
+	if dg.Level != nil && (*dg.Level < 1 || *dg.Level > 10) {
+		return fmt.Errorf("staff[%d].level must be in [1,10] (got %d)", i, *dg.Level)
+	}
+	if len(dg.LearnedTraits) > 8 {
+		return fmt.Errorf("staff[%d].learnedTraits length must be <= 8 (got %d)", i, len(dg.LearnedTraits))
+	}
+	if dg.Status != nil && *dg.Status != "active" && *dg.Status != "pip" {
+		return fmt.Errorf("staff[%d].status %q must be active or pip", i, *dg.Status)
+	}
+	if dg.PipDaysLeft != nil && *dg.PipDaysLeft < 0 {
+		return fmt.Errorf("staff[%d].pipDaysLeft must be >= 0 (got %d)", i, *dg.PipDaysLeft)
+	}
+	if len(dg.PipTasks) > 10 {
+		return fmt.Errorf("staff[%d].pipTasks length must be <= 10 (got %d)", i, len(dg.PipTasks))
+	}
+	if dg.RosterID != nil {
+		if _, ok := validRosterID[*dg.RosterID]; !ok {
+			return fmt.Errorf("staff[%d].rosterId %q not in roster whitelist", i, *dg.RosterID)
 		}
 	}
 	return nil
