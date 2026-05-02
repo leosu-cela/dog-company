@@ -183,7 +183,7 @@
 ## Sanity Check（POST 時）
 
 - `days >= 1`、`days <= 365 * 5`（長局也接受）
-- `money >= goal`（達不到 $50k 不能提交）
+- `money >= 0`（不再強制 ≥ goal；遊戲結束時資金可能已低於目標）
 - `money <= goal * 5 + days * 2000`（基底 $250k + 每天 $2000 線性放寬，避免長局玩家撞牆；對應 `MoneyMultiplier=5`、`MoneyPerDayCap=2000`）
 - `goal` 限定白名單：目前只接受 `50000`（payload 缺欄位時 server 自動補 `50000`）
 - `office_level` ∈ [0, 4]（對齊 saves spec，不再強制 ≥3）

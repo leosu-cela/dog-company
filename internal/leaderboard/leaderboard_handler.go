@@ -271,8 +271,8 @@ func sanityCheck(p *SubmitPayload) error {
 	if _, ok := allowedGoals[p.Goal]; !ok {
 		return fmt.Errorf("goal %d is not supported", p.Goal)
 	}
-	if p.Money < p.Goal {
-		return fmt.Errorf("money must be >= goal (money=%d, goal=%d)", p.Money, p.Goal)
+	if p.Money < 0 {
+		return fmt.Errorf("money must be >= 0 (got %d)", p.Money)
 	}
 	moneyMax := p.Goal*MoneyMultiplier + p.Days*MoneyPerDayCap
 	if p.Money > moneyMax {
