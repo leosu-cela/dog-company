@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/leosu-cela/dog-company/internal/events"
 	"github.com/leosu-cela/dog-company/internal/user"
 	"github.com/leosu-cela/dog-company/pkg/tool"
 )
@@ -90,15 +91,23 @@ type ListInput struct {
 }
 
 type LeaderboardHandler struct {
-	db        *gorm.DB
-	repo      IEntryRepository
-	runRepo   IRunRepository
-	userRepo  user.IUserRepository
-	listCache *ListCache
+	db          *gorm.DB
+	repo        IEntryRepository
+	runRepo     IRunRepository
+	userRepo    user.IUserRepository
+	listCache   *ListCache
+	eventBuffer *events.Buffer
 }
 
-func NewLeaderboardHandler(db *gorm.DB, repo IEntryRepository, runRepo IRunRepository, userRepo user.IUserRepository, listCache *ListCache) *LeaderboardHandler {
-	return &LeaderboardHandler{db: db, repo: repo, runRepo: runRepo, userRepo: userRepo, listCache: listCache}
+func NewLeaderboardHandler(db *gorm.DB, repo IEntryRepository, runRepo IRunRepository, userRepo user.IUserRepository, listCache *ListCache, eventBuffer *events.Buffer) *LeaderboardHandler {
+	return &LeaderboardHandler{
+		db:          db,
+		repo:        repo,
+		runRepo:     runRepo,
+		userRepo:    userRepo,
+		listCache:   listCache,
+		eventBuffer: eventBuffer,
+	}
 }
 
 type StartRunPayload struct {
@@ -136,6 +145,10 @@ func (handler *LeaderboardHandler) StartRun(ctx context.Context, uid uuid.UUID, 
 		log.Printf("%s runRepo.Upsert failed: %v", group, err)
 		return tool.Err(tool.CodeInternal, "internal error")
 	}
+
+	events.LogInternal(handler.eventBuffer, u.UID, events.TypeStartRun, map[string]any{
+		"goal": goal,
+	})
 
 	return tool.OK(StartRunOutput{StartedAt: run.StartedAt})
 }
@@ -324,6 +337,15 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 	}
 
 	handler.listCache.InvalidateGoal(payload.Goal)
+
+	events.LogInternal(handler.eventBuffer, u.UID, events.TypeSubmitLeaderboard, map[string]any{
+		"goal":               payload.Goal,
+		"days":               payload.Days,
+		"money":              payload.Money,
+		"office_level":       payload.OfficeLevel,
+		"staff_count":        payload.StaffCount,
+		"projects_completed": payload.ProjectsCompleted,
+	})
 
 	return tool.OK(out)
 }

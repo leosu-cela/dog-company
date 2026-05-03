@@ -35,6 +35,7 @@ import (
 	"github.com/leosu-cela/dog-company/internal/auth"
 	"github.com/leosu-cela/dog-company/internal/config"
 	"github.com/leosu-cela/dog-company/internal/database"
+	"github.com/leosu-cela/dog-company/internal/events"
 	"github.com/leosu-cela/dog-company/internal/leaderboard"
 	"github.com/leosu-cela/dog-company/internal/save"
 	"github.com/leosu-cela/dog-company/internal/user"
@@ -63,10 +64,15 @@ func main() {
 	saveHandler := save.NewSaveHandler(db, saveRepo)
 	saveCtrl := save.NewSaveController(saveHandler)
 
+	eventRepo := events.NewEventRepository()
+	eventBuffer := events.NewBuffer(db, eventRepo, 100, 5*time.Minute)
+	eventHandler := events.NewEventHandler(eventBuffer)
+	eventCtrl := events.NewEventController(eventHandler)
+
 	leaderboardRepo := leaderboard.NewEntryRepository()
 	leaderboardRunRepo := leaderboard.NewRunRepository()
 	leaderboardCache := leaderboard.NewListCache(leaderboard.ListCacheTTL)
-	leaderboardHandler := leaderboard.NewLeaderboardHandler(db, leaderboardRepo, leaderboardRunRepo, userRepo, leaderboardCache)
+	leaderboardHandler := leaderboard.NewLeaderboardHandler(db, leaderboardRepo, leaderboardRunRepo, userRepo, leaderboardCache, eventBuffer)
 	leaderboardCtrl := leaderboard.NewLeaderboardController(leaderboardHandler)
 
 	r := gin.Default()
@@ -112,6 +118,8 @@ func main() {
 	authed.POST("/leaderboard", leaderboardCtrl.Submit)
 	authed.POST("/leaderboard/run", leaderboardCtrl.StartRun)
 
+	authed.POST("/events", eventCtrl.Log)
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           r,
@@ -135,6 +143,9 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("forced shutdown: %v", err)
 	}
+
+	// Server 已停接 request，最後 flush 事件 buffer 殘餘事件。
+	eventBuffer.Close()
 	log.Println("server exited")
 }
 
