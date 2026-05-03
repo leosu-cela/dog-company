@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var ErrNotFound = errors.New("entry not found")
@@ -14,7 +15,8 @@ type IEntryRepository interface {
 	Create(tx *gorm.DB, e *Entry) error
 	List(tx *gorm.DB, goal, limit int) ([]Entry, error)
 	FindBestByUserAndGoal(tx *gorm.DB, userID uint64, goal int) (*Entry, error)
-	FindRecentDuplicate(tx *gorm.DB, userID uint64, goal, days, money, projectsCompleted int, within time.Duration) (*Entry, error)
+	FindByUserAndGoalForUpdate(tx *gorm.DB, userID uint64, goal int) (*Entry, error)
+	UpdateBestFields(tx *gorm.DB, id uint64, days, money, officeLevel, staffCount, projectsCompleted int, companyName string, submittedAt time.Time) error
 	CountBetter(tx *gorm.DB, goal, days, money, projectsCompleted int) (int64, error)
 	CountByGoal(tx *gorm.DB, goal int) (int64, error)
 }
@@ -60,22 +62,36 @@ func (rep *EntryRepository) FindBestByUserAndGoal(tx *gorm.DB, userID uint64, go
 	return &e, nil
 }
 
-func (rep *EntryRepository) FindRecentDuplicate(tx *gorm.DB, userID uint64, goal, days, money, projectsCompleted int, within time.Duration) (*Entry, error) {
+func (rep *EntryRepository) FindByUserAndGoalForUpdate(tx *gorm.DB, userID uint64, goal int) (*Entry, error) {
 	var e Entry
-	cutoff := time.Now().Add(-within)
-	err := tx.Where(
-		"user_id = ? AND goal = ? AND days = ? AND money = ? AND projects_completed = ? AND submitted_at > ?",
-		userID, goal, days, money, projectsCompleted, cutoff,
-	).
-		Order("id DESC").
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ? AND goal = ?", userID, goal).
 		First(&e).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("find recent duplicate: %w", err)
+		return nil, fmt.Errorf("find by user and goal for update: %w", err)
 	}
 	return &e, nil
+}
+
+func (rep *EntryRepository) UpdateBestFields(tx *gorm.DB, id uint64, days, money, officeLevel, staffCount, projectsCompleted int, companyName string, submittedAt time.Time) error {
+	err := tx.Model(&Entry{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"days":               days,
+			"money":              money,
+			"office_level":       officeLevel,
+			"staff_count":        staffCount,
+			"projects_completed": projectsCompleted,
+			"company_name":       companyName,
+			"submitted_at":       submittedAt,
+		}).Error
+	if err != nil {
+		return fmt.Errorf("update best fields: %w", err)
+	}
+	return nil
 }
 
 // CountBetter returns the number of entries that rank strictly above

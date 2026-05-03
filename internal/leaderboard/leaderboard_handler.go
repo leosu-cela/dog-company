@@ -27,7 +27,6 @@ const (
 	MaxProjects     = 365 * 3
 	MoneyMultiplier = 5
 	MoneyPerDayCap  = 2000
-	DedupeWindow    = time.Minute
 	ListCacheTTL    = 30 * time.Minute
 
 	CompanyNameMinRunes = 2
@@ -181,31 +180,47 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 	var out SubmitOutput
 
 	txErr := tx.Transaction(func(itx *gorm.DB) error {
-		dup, err := handler.repo.FindRecentDuplicate(itx, u.ID, payload.Goal, payload.Days, payload.Money, payload.ProjectsCompleted, DedupeWindow)
+		existing, err := handler.repo.FindByUserAndGoalForUpdate(itx, u.ID, payload.Goal)
 		if err != nil && !errors.Is(err, ErrNotFound) {
 			return err
 		}
 
+		companyName := strings.TrimSpace(payload.CompanyName)
+		now := time.Now()
+
 		var target *Entry
-		if dup != nil {
-			target = dup
-		} else {
+		switch {
+		case existing == nil:
 			e := &Entry{
 				UserID:            u.ID,
 				Nickname:          u.Account,
-				CompanyName:       strings.TrimSpace(payload.CompanyName),
+				CompanyName:       companyName,
 				Days:              payload.Days,
 				Money:             payload.Money,
 				Goal:              payload.Goal,
 				OfficeLevel:       payload.OfficeLevel,
 				StaffCount:        payload.StaffCount,
 				ProjectsCompleted: payload.ProjectsCompleted,
-				SubmittedAt:       time.Now(),
+				SubmittedAt:       now,
 			}
 			if err := handler.repo.Create(itx, e); err != nil {
 				return err
 			}
 			target = e
+		case isBetter(payload.Days, payload.Money, payload.ProjectsCompleted, existing.Days, existing.Money, existing.ProjectsCompleted):
+			if err := handler.repo.UpdateBestFields(itx, existing.ID, payload.Days, payload.Money, payload.OfficeLevel, payload.StaffCount, payload.ProjectsCompleted, companyName, now); err != nil {
+				return err
+			}
+			existing.Days = payload.Days
+			existing.Money = payload.Money
+			existing.OfficeLevel = payload.OfficeLevel
+			existing.StaffCount = payload.StaffCount
+			existing.ProjectsCompleted = payload.ProjectsCompleted
+			existing.CompanyName = companyName
+			existing.SubmittedAt = now
+			target = existing
+		default:
+			target = existing
 		}
 
 		better, err := handler.repo.CountBetter(itx, target.Goal, target.Days, target.Money, target.ProjectsCompleted)
@@ -233,6 +248,17 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 	handler.listCache.InvalidateGoal(payload.Goal)
 
 	return tool.OK(out)
+}
+
+// isBetter mirrors FindBestByUserAndGoal sort: days ASC, money DESC, projectsCompleted DESC.
+func isBetter(newDays, newMoney, newProjects, oldDays, oldMoney, oldProjects int) bool {
+	if newDays != oldDays {
+		return newDays < oldDays
+	}
+	if newMoney != oldMoney {
+		return newMoney > oldMoney
+	}
+	return newProjects > oldProjects
 }
 
 func clampLimit(raw, def, max int) int {
