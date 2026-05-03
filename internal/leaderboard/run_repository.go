@@ -32,13 +32,11 @@ func (rep *RunRepository) Upsert(tx *gorm.DB, userID uint64, goal int) (*Run, er
 		UserID:    userID,
 		Goal:      goal,
 		StartedAt: now,
-		UpdatedAt: now,
 	}
 	err := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "user_id"}, {Name: "goal"}},
 		DoUpdates: clause.Assignments(map[string]any{
 			"started_at": now,
-			"updated_at": now,
 		}),
 	}).Create(r).Error
 	if err != nil {
