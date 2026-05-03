@@ -20,7 +20,7 @@ const (
 	LogMaxEntries       = 10
 	MaxClients          = 30
 	MaxBankrupt         = 5
-	MaxTutorialStep     = 7
+	MaxTutorialStep     = 8
 	MaxOfficeLevel      = 4
 	MinDogStat          = 1
 	MaxDogStat          = 30

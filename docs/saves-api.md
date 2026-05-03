@@ -2,7 +2,7 @@
 
 本文件描述 `dog-company` 後端**重寫**後的存檔端點。極簡版：一人一份 current save，不做歷代封存。
 
-> 規格版本：draft-10（2026-05-02，新增 v3：工具系統 + 累積進度欄位正式入錄）
+> 規格版本：draft-11（2026-05-03，`tutorialStep` 範圍由 [0, 7] 擴為 [0, 8]：教學新增第 7 步「關閉隊伍視窗」，完成值由 7 變 8）
 > 基準 API base：`https://dog-company-production.up.railway.app/api/v1`
 
 > ⚠️ **v1 永久停用**。v2 與 v3 同時支援；前端目前 `SAVE_VERSION = 3`，但伺服器仍須接受 v2 payload 以相容舊雲端紀錄。
@@ -56,7 +56,7 @@
     "vacancyTimer": 0,
     "bankrupt": false,
     "bankruptCountdown": 0,
-    "tutorialStep": 7,
+    "tutorialStep": 8,
     "recruitmentClosed": false,
 
     "staff": [ /* Dog[] */ ],
@@ -128,7 +128,7 @@
 | `vacancyTimer` | int | ≥0 | 空窗剩餘天數 |
 | `bankrupt` | bool | — | 是否破產 |
 | `bankruptCountdown` | int | 0-5 | **連續資金 ≤0 的天數**（達 5 → 破產）|
-| `tutorialStep` | int | 0-7 | 教學進度。≥7 表示已看完 |
+| `tutorialStep` | int | 0-8 | 教學進度。0=未開始，1-7=各步進行中，**8=已完成（DONE）**。舊資料若為 7 server 不需處理，前端會 clamp |
 | `recruitmentClosed` | bool | — | 玩家手動暫停招募 |
 
 #### 集合
@@ -622,7 +622,7 @@ CREATE TABLE saves (
    - `reputation` ∈ [0, 100]
    - `day`, `money`, `officeLevel`, `tierBudget`, `projectsCompleted`, `projectsFailed`, `bankruptCountdown` >= 0
    - `bankruptCountdown` ≤ 5
-   - `tutorialStep` ∈ [0, 7]
+   - `tutorialStep` ∈ [0, 8]（draft-11 起；舊上限 7 的 server 要放寬，否則新前端送 8 會被 reject）
    - `loanRepayDaysLeft` ∈ [0, 80]
    - `companyBuffs` 子欄位皆 ≥ 0（含 v3 新增的 `categorySpeed/categoryQuality/patienceBoost/fatigueRecoveryBonus`）
    - `officeSkin`（若提供）∈ [0, 4]
