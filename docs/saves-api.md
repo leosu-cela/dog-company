@@ -2,6 +2,7 @@
 
 本文件描述 `dog-company` 後端**重寫**後的存檔端點。極簡版：一人一份 current save，不做歷代封存。
 
+> 規格版本：draft-12（2026-05-04，roster 重整：PM 復活、化學反應改 4 條、4 隻 D 升 A、Flash→Sherry。**rosterId 白名單同步換版**，每產業改為 D5+C4+B3+A3+S1，新增 `tech-A-3` / `design-A-3` / `mkt-A-3` / `svc-A-3`、移除 `tech-D-6`。詳見 docs/roster-restructure-2026-05.md）
 > 規格版本：draft-11（2026-05-03，`tutorialStep` 範圍由 [0, 7] 擴為 [0, 8]：教學新增第 7 步「關閉隊伍視窗」，完成值由 7 變 8）
 > 基準 API base：`https://dog-company-production.up.railway.app/api/v1`
 
@@ -349,18 +350,18 @@
 tech-D-1 | 橘長     | 柴犬           | 工程師 | tech | D
 tech-D-2 | 咬咬     | 哈士奇         | 工程師 | tech | D
 tech-D-3 | Bug      | 柯基           | 工程師 | tech | D
-tech-D-4 | Steve    | 雪納瑞         | QA     | tech | D
-tech-D-5 | Howhow   | 貴賓           | QA     | tech | D
-tech-D-6 | 小吉     | 比熊           | QA     | tech | D
+tech-D-4 | 米米     | 柴犬           | PM     | tech | D
+tech-D-5 | 小星     | 巴哥           | PM     | tech | D
 tech-C-1 | 魷魚     | 邊境牧羊犬     | 工程師 | tech | C
 tech-C-2 | Tony     | 黃金獵犬       | 工程師 | tech | C
-tech-C-3 | CC       | 臘腸           | QA     | tech | C
-tech-C-4 | 泡泡     | 阿拉斯加       | QA     | tech | C
+tech-C-3 | Sherry   | 惠比特         | PM     | tech | C
+tech-C-4 | 百變     | 貴賓           | PM     | tech | C
 tech-B-1 | Nancy    | 德國牧羊犬     | 工程師 | tech | B
 tech-B-2 | Luke     | 惠比特         | 工程師 | tech | B
-tech-B-3 | Vivi     | 杜賓           | QA     | tech | B
+tech-B-3 | 典典     | 德國牧羊犬     | PM     | tech | B
 tech-A-1 | 小得     | 羅威那         | 工程師 | tech | A
-tech-A-2 | 缺缺     | 伯恩山犬       | QA     | tech | A
+tech-A-2 | 缺缺     | 伯恩山犬       | 工程師 | tech | A
+tech-A-3 | 罐頭     | 比熊           | PM     | tech | A
 tech-S-1 | 小蘇     | 大白熊         | 工程師 | tech | S
 ```
 
@@ -370,39 +371,39 @@ tech-S-1 | 小蘇     | 大白熊         | 工程師 | tech | S
 design-D-1 | 塗塗     | 比熊           | 美術   | design | D
 design-D-2 | 甜甜圈   | 蝴蝶犬         | 美術   | design | D
 design-D-3 | 色色     | 馬爾濟斯       | 美術   | design | D
-design-D-4 | 泡芙     | 柴犬           | 企劃   | design | D
-design-D-5 | 舒舒     | 柯基           | 企劃   | design | D
-design-D-6 | Wish     | 巴哥           | 企劃   | design | D
+design-D-4 | Howhow   | 貴賓           | QA     | design | D
+design-D-5 | 小吉     | 比熊           | QA     | design | D
 design-C-1 | Joy      | 貴賓           | 美術   | design | C
 design-C-2 | 小麥     | 雪納瑞         | 美術   | design | C
-design-C-3 | 阿雅     | 哈士奇         | 企劃   | design | C
-design-C-4 | 青青     | 邊境牧羊犬     | 企劃   | design | C
+design-C-3 | CC       | 臘腸           | QA     | design | C
+design-C-4 | 泡泡     | 阿拉斯加       | QA     | design | C
 design-B-1 | 香蕉     | 黃金獵犬       | 美術   | design | B
 design-B-2 | 小玲     | 臘腸           | 美術   | design | B
-design-B-3 | ㄧ加     | 伯恩山犬       | 企劃   | design | B
+design-B-3 | Vivi     | 杜賓           | QA     | design | B
 design-A-1 | 小成     | 阿富汗獵犬     | 美術   | design | A
-design-A-2 | 恐龍     | 邊境牧羊犬     | 企劃   | design | A
+design-A-2 | 恐龍     | 邊境牧羊犬     | 美術   | design | A
+design-A-3 | Steve    | 雪納瑞         | QA     | design | A
 design-S-1 | 嚕比醬   | 薩摩耶         | 美術   | design | S
 ```
 
 #### marketing 行銷業務（16）
 
 ```
-mkt-D-1 | Max      | 巴哥           | 業務   | marketing | D
-mkt-D-2 | Coco     | 吉娃娃         | 業務   | marketing | D
-mkt-D-3 | 呱呱     | 比熊           | 業務   | marketing | D
-mkt-D-4 | 貼貼     | 柯基           | 行銷   | marketing | D
-mkt-D-5 | 宇宙     | 波士頓㹴       | 行銷   | marketing | D
-mkt-D-6 | 毛毛     | 蝴蝶犬         | 行銷   | marketing | D
-mkt-C-1 | Peeta    | 哈士奇         | 業務   | marketing | C
-mkt-C-2 | 桃桃     | 黃金獵犬       | 業務   | marketing | C
-mkt-C-3 | 小安     | 雪納瑞         | 行銷   | marketing | C
-mkt-C-4 | 靜靜     | 貴賓           | 行銷   | marketing | C
-mkt-B-1 | KK       | 德國牧羊犬     | 業務   | marketing | B
-mkt-B-2 | 哼哼     | 杜賓           | 業務   | marketing | B
-mkt-B-3 | 阿瑋     | 邊境牧羊犬     | 行銷   | marketing | B
-mkt-A-1 | 蘑菇     | 羅威那         | 業務   | marketing | A
-mkt-A-2 | 雪莉     | 英國牧羊犬     | 行銷   | marketing | A
+mkt-D-1 | 貼貼     | 柯基           | 行銷   | marketing | D
+mkt-D-2 | 宇宙     | 波士頓㹴       | 行銷   | marketing | D
+mkt-D-3 | 毛毛     | 蝴蝶犬         | 行銷   | marketing | D
+mkt-D-4 | Coco     | 吉娃娃         | 業務   | marketing | D
+mkt-D-5 | 呱呱     | 比熊           | 業務   | marketing | D
+mkt-C-1 | 小安     | 雪納瑞         | 行銷   | marketing | C
+mkt-C-2 | 靜靜     | 貴賓           | 行銷   | marketing | C
+mkt-C-3 | Peeta    | 哈士奇         | 業務   | marketing | C
+mkt-C-4 | 桃桃     | 黃金獵犬       | 業務   | marketing | C
+mkt-B-1 | 阿瑋     | 邊境牧羊犬     | 行銷   | marketing | B
+mkt-B-2 | 哼哼     | 杜賓           | 行銷   | marketing | B
+mkt-B-3 | KK       | 德國牧羊犬     | 業務   | marketing | B
+mkt-A-1 | 雪莉     | 英國牧羊犬     | 行銷   | marketing | A
+mkt-A-2 | 蘑菇     | 羅威那         | 行銷   | marketing | A
+mkt-A-3 | Max      | 巴哥           | 業務   | marketing | A
 mkt-S-1 | 七yo     | 阿拉斯加       | 行銷   | marketing | S
 ```
 
@@ -412,25 +413,25 @@ mkt-S-1 | 七yo     | 阿拉斯加       | 行銷   | marketing | S
 svc-D-1 | 熙熙     | 馬爾濟斯       | 客服   | service | D
 svc-D-2 | 笑笑     | 吉娃娃         | 客服   | service | D
 svc-D-3 | 糖糖     | 蝴蝶犬         | 客服   | service | D
-svc-D-4 | 罐頭     | 比熊           | 客服   | service | D
-svc-D-5 | 小星     | 巴哥           | 客服   | service | D
-svc-D-6 | 米米     | 柴犬           | 客服   | service | D
+svc-D-4 | 舒舒     | 柯基           | 企劃   | service | D
+svc-D-5 | Wish     | 巴哥           | 企劃   | service | D
 svc-C-1 | 維力     | 黃金獵犬       | 客服   | service | C
 svc-C-2 | 柔柔     | 柯基           | 客服   | service | C
-svc-C-3 | Flash    | 惠比特         | 客服   | service | C
-svc-C-4 | 百變     | 貴賓           | 客服   | service | C
+svc-C-3 | 阿雅     | 哈士奇         | 企劃   | service | C
+svc-C-4 | 青青     | 邊境牧羊犬     | 企劃   | service | C
 svc-B-1 | York     | 伯恩山犬       | 客服   | service | B
 svc-B-2 | 魚魚     | 英國牧羊犬     | 客服   | service | B
-svc-B-3 | 典典     | 德國牧羊犬     | 客服   | service | B
+svc-B-3 | ㄧ加     | 伯恩山犬       | 企劃   | service | B
 svc-A-1 | 水獺     | 伯恩山犬       | 客服   | service | A
 svc-A-2 | Yuna     | 邊境牧羊犬     | 客服   | service | A
+svc-A-3 | 泡芙     | 柴犬           | 企劃   | service | A
 svc-S-1 | 露西亞   | 大白熊         | 客服   | service | S
 ```
 
 #### U 級（1）
 
 ```
-u-1 | 任勞任怨狗 | 鬆獅犬 | CEO | tech | U
+u-1 | 刀霸翎 | 鬆獅犬 | CEO | tech | U
 ```
 
 ---
