@@ -22,12 +22,13 @@
 | Method | Path | Auth | 說明 |
 |--------|------|------|------|
 | GET    | `/leaderboard` | **optional** | 取得全球榜 top N + 自己的最佳（一次拿） |
-| POST   | `/leaderboard` | Bearer | 提交達標紀錄（IPO 達成時觸發）|
+| POST   | `/leaderboard` | Bearer | 提交達標紀錄（達成豪華總部時觸發）|
+| POST   | `/leaderboard/run` | Bearer | 開新局時呼叫，後端紀錄 wall-clock 起始時間（v8 新增）|
 
 **認證**：
 - `GET /leaderboard` 可匿名（匿名時不回 `me` 欄位）
 - 帶 Bearer token 時，`me` 欄位會包含該 user 的個人最佳
-- `POST` 必須 Bearer token
+- `POST /leaderboard` / `POST /leaderboard/run` 必須 Bearer token
 
 **Response 格式**：沿用 `CommonResponse`：`{ code, message, data }`。
 
@@ -62,9 +63,9 @@
 | `days` | int, ≥1 | IPO 達成時的 day 數（**主排序鍵**）|
 | `money` | int, ≥0 | 達成時資金 |
 | `goal` | int | 目標金額（固定 50000）|
-| `office_level` | int, 0-4 | 達成時辦公室等級 |
-| `staff_count` | int, 0-100 | 達成時員工數 |
-| `projects_completed` | int, ≥0 | 完成案件累計數 |
+| `office_level` | int, 0-4 | 達成時辦公室等級（≥3 才可達 IPO）|
+| `staff_count` | int, ≥0 | 達成時員工數 |
+| `projects_completed` | int, ≥30 | **完成案件累計數（v2 新增；IPO 條件之一）**|
 | `submitted_at` | ISO string | server 紀錄時間 |
 
 ### SubmitPayload（POST 請求 body）
@@ -144,9 +145,38 @@
 
 ---
 
+### POST `/leaderboard/run`
+
+**v8 新增**。前端在「開新局」時呼叫，後端 upsert `(user_id, goal)` 對應的 `started_at = now()`。
+送排行榜時驗證真實 wall-clock 時長下界，擋偽造紀錄。
+
+**呼叫時機**：
+- 玩家從 splash 點開始
+- 破產後 restart
+- **載入雲端存檔不應呼叫**，沿用原始 `started_at`（不重置）
+
+**Request body**（可空）：
+```json
+{ "goal": 50000 }
+```
+缺欄位時 server 自動補 `goal=50000`。
+
+**Response 200**：
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": { "started_at": "2026-05-04T12:34:56Z" }
+}
+```
+
+冪等：同 `(user_id, goal)` 重複呼叫會覆蓋 `started_at` 為現在（用於 restart 重置計時）。
+
+---
+
 ### POST `/leaderboard`
 
-提交一筆 IPO 達成紀錄。
+提交一筆豪華總部達成紀錄。
 
 **Request body**：見上面 SubmitPayload。
 
@@ -182,18 +212,20 @@
 
 ## Sanity Check（POST 時）
 
-- `days >= 1`、`days <= 365 * 5`（長局也接受）
-- `money >= 0`（不再強制 ≥ goal；遊戲結束時資金可能已低於目標）
-- `money <= goal * 5 + days * 2000`（基底 $250k + 每天 $2000 線性放寬，避免長局玩家撞牆；對應 `MoneyMultiplier=5`、`MoneyPerDayCap=2000`）
-- `goal` 限定白名單：目前只接受 `50000`（payload 缺欄位時 server 自動補 `50000`）
-- `office_level` ∈ [0, 4]（對齊 saves spec，不再強制 ≥3）
-- `staff_count` ∈ [0, 100]（對齊 saves staff cap）
-- `projects_completed` ∈ [0, 365 * 3]（不再強制 ≥30）
+- `days >= 1`、`days <= 365`
+- `money >= goal`（達不到 $50k 不能提交）
+- `money <= goal * 5`（v2 後期單筆 tier5 案 $1900~2600，整局可累到 $250k+，上限放寬到 5 倍）
+- `goal` 限定白名單：目前只接受 `50000`
+- `office_level` ∈ [3, 4]（IPO 條件要求 ≥ Lv3，所以 0~2 直接 reject）
+- `staff_count` ∈ [0, 50]
+- **`projects_completed >= 30`**（IPO 條件要求 ≥30 完成案，否則 reject）
+- `projects_completed <= 365 * 3`（一天最多平均 3 案）
 - **`company_name`**（v6 新增）：
   - trim 後 rune count ∈ [2, 8]
   - 字元白名單：`[\p{Han}A-Za-z0-9 ]`（CJK + 英數 + ASCII 空白）
   - 不得含髒話清單（後端 `internal/leaderboard/profanity.go` 維護，獨立於前端清單）
 - 同 `user_id + goal + days + money + projects_completed` 組合 1 分鐘內重複送 → dedupe（靜默成功）
+- **Run 時長下界（v8 新增）**：必須先呼叫過 `POST /leaderboard/run`，且 `now - started_at >= days * 4.9` 秒（`MinSecondsPerDay = 4.9`，遊戲最快 1 天 5 秒，留 0.1 秒緩衝）。失敗回 `4002`，message 為 `no active run; please start a new game first` 或 `run duration too short (min Xs)`。提交成功後 server 自動刪除該 run 紀錄，避免重送
 
 不過 → **400**，message 指明欄位。
 
@@ -225,12 +257,27 @@ CREATE INDEX idx_leaderboard_goal_days ON leaderboard_entries(goal, days ASC, mo
 CREATE INDEX idx_leaderboard_user_goal ON leaderboard_entries(user_id, goal, submitted_at DESC);
 ```
 
+### `leaderboard_runs`（v8 新增）
+
+```sql
+CREATE TABLE leaderboard_runs (
+  user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  goal       INT NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, goal)
+);
+```
+
+紀錄當前進行中的 run。送排行榜成功後 server 自動刪除該筆。
+
 ### Migration 檔名建議
 
 ```
 000005_create_leaderboard.up.sql                      （v1 既有）
 000006_add_projects_completed_to_leaderboard.up.sql   （v2 加欄位）
 000006_add_projects_completed_to_leaderboard.down.sql
+000011_create_leaderboard_runs.up.sql                 （v8 新增 run 表）
 ```
 
 v2 增量 migration（既有 DB 升級用）：

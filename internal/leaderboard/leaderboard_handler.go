@@ -31,6 +31,10 @@ const (
 
 	CompanyNameMinRunes = 2
 	CompanyNameMaxRunes = 8
+
+	// 真實 wall-clock 時間下界：每個遊戲內天數至少需要的秒數。
+	// 校準依據：遊戲最快 1 天 = 5 秒（含買加速），用 4.9 留誤差緩衝。
+	MinSecondsPerDay = 4.9
 )
 
 var allowedGoals = map[int]struct{}{50000: {}}
@@ -88,12 +92,52 @@ type ListInput struct {
 type LeaderboardHandler struct {
 	db        *gorm.DB
 	repo      IEntryRepository
+	runRepo   IRunRepository
 	userRepo  user.IUserRepository
 	listCache *ListCache
 }
 
-func NewLeaderboardHandler(db *gorm.DB, repo IEntryRepository, userRepo user.IUserRepository, listCache *ListCache) *LeaderboardHandler {
-	return &LeaderboardHandler{db: db, repo: repo, userRepo: userRepo, listCache: listCache}
+func NewLeaderboardHandler(db *gorm.DB, repo IEntryRepository, runRepo IRunRepository, userRepo user.IUserRepository, listCache *ListCache) *LeaderboardHandler {
+	return &LeaderboardHandler{db: db, repo: repo, runRepo: runRepo, userRepo: userRepo, listCache: listCache}
+}
+
+type StartRunPayload struct {
+	Goal int `json:"goal" example:"50000"`
+}
+
+type StartRunOutput struct {
+	StartedAt time.Time `json:"started_at"`
+}
+
+func (handler *LeaderboardHandler) StartRun(ctx context.Context, uid uuid.UUID, payload StartRunPayload) tool.CommonResponse {
+	group := "[LeaderboardHandler@StartRun]"
+
+	goal := payload.Goal
+	if goal == 0 {
+		goal = DefaultGoal
+	}
+	if _, ok := allowedGoals[goal]; !ok {
+		return tool.Err(tool.CodeSanityFailed, fmt.Sprintf("goal %d is not supported", goal))
+	}
+
+	tx := handler.db.WithContext(ctx)
+
+	u, err := handler.userRepo.FindByUID(tx, uid)
+	if err != nil {
+		if errors.Is(err, user.ErrNotFound) {
+			return tool.Err(tool.CodeUnauthorized, "user not found")
+		}
+		log.Printf("%s userRepo.FindByUID failed: %v", group, err)
+		return tool.Err(tool.CodeInternal, "internal error")
+	}
+
+	run, err := handler.runRepo.Upsert(tx, u.ID, goal)
+	if err != nil {
+		log.Printf("%s runRepo.Upsert failed: %v", group, err)
+		return tool.Err(tool.CodeInternal, "internal error")
+	}
+
+	return tool.OK(StartRunOutput{StartedAt: run.StartedAt})
 }
 
 func (handler *LeaderboardHandler) List(ctx context.Context, in ListInput) tool.CommonResponse {
@@ -159,6 +203,12 @@ func (handler *LeaderboardHandler) tryMe(tx *gorm.DB, uid uuid.UUID, goal int, g
 	}
 }
 
+// Sentinel errors for surfacing user-facing rejection from inside tx.Transaction.
+var (
+	errNoActiveRun = errors.New("no active run")
+	errRunTooShort = errors.New("run too short")
+)
+
 func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, payload SubmitPayload) tool.CommonResponse {
 	group := "[LeaderboardHandler@Submit]"
 
@@ -178,8 +228,25 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 	}
 
 	var out SubmitOutput
+	var minSec float64
 
 	txErr := tx.Transaction(func(itx *gorm.DB) error {
+		// 驗證 run 真實時長下界。
+		// 沒有 active run（玩家未呼叫 StartRun，或 token 已被前次提交刪除）→ 拒收。
+		// 真實 wall-clock 時間 < days * MinSecondsPerDay → 拒收。
+		run, runErr := handler.runRepo.FindByUserAndGoalForUpdate(itx, u.ID, payload.Goal)
+		if runErr != nil {
+			if errors.Is(runErr, ErrRunNotFound) {
+				return errNoActiveRun
+			}
+			return runErr
+		}
+		elapsed := time.Since(run.StartedAt).Seconds()
+		minSec = float64(payload.Days) * MinSecondsPerDay
+		if elapsed < minSec {
+			return errRunTooShort
+		}
+
 		existing, err := handler.repo.FindByUserAndGoalForUpdate(itx, u.ID, payload.Goal)
 		if err != nil && !errors.Is(err, ErrNotFound) {
 			return err
@@ -237,9 +304,20 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 			Rank:  int(better) + 1,
 			Total: int(total),
 		}
+
+		// 寫入成功 → 同 tx 內刪除 run，避免同筆 run 重送或事後再被竄改起算時間。
+		if err := handler.runRepo.DeleteByUserAndGoal(itx, u.ID, payload.Goal); err != nil {
+			return err
+		}
 		return nil
 	})
 
+	if errors.Is(txErr, errNoActiveRun) {
+		return tool.Err(tool.CodeSanityFailed, "no active run; please start a new game first")
+	}
+	if errors.Is(txErr, errRunTooShort) {
+		return tool.Err(tool.CodeSanityFailed, fmt.Sprintf("run duration too short (min %.1fs)", minSec))
+	}
 	if txErr != nil {
 		log.Printf("%s tx failed: %v", group, txErr)
 		return tool.Err(tool.CodeInternal, "internal error")

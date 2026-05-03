@@ -78,3 +78,33 @@ func (ctrl *LeaderboardController) Submit(c *gin.Context) {
 
 	res = ctrl.handler.Submit(c.Request.Context(), uid, payload)
 }
+
+// StartRun godoc
+//
+//	@Summary		Start a leaderboard run
+//	@Description	Records the wall-clock start time for the caller's current run. Called when the player begins a fresh game (new game / restart after bankruptcy). The server uses this to validate run duration on Submit. Loading a cloud save does NOT trigger this — the original started_at is preserved. Idempotent: calling again upserts started_at to now (intended for restart).
+//	@Tags			leaderboard
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			body	body		StartRunPayload	false	"start run payload"
+//	@Success		200		{object}	tool.CommonResponse{data=StartRunOutput}
+//	@Failure		400		{object}	tool.CommonResponse	"unsupported goal"
+//	@Failure		401		{object}	tool.CommonResponse	"missing / invalid / expired token"
+//	@Failure		500		{object}	tool.CommonResponse	"internal error"
+//	@Router			/leaderboard/run [post]
+func (ctrl *LeaderboardController) StartRun(c *gin.Context) {
+	var res tool.CommonResponse
+	defer tool.WriteByHeader(c, &res)
+
+	uid, ok := auth.UIDFromContext(c)
+	if !ok {
+		res = tool.Err(tool.CodeUnauthorized, "missing user context")
+		return
+	}
+
+	var payload StartRunPayload
+	_ = c.ShouldBindJSON(&payload) // body 可空
+
+	res = ctrl.handler.StartRun(c.Request.Context(), uid, payload)
+}

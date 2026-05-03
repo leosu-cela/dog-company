@@ -64,8 +64,9 @@ func main() {
 	saveCtrl := save.NewSaveController(saveHandler)
 
 	leaderboardRepo := leaderboard.NewEntryRepository()
+	leaderboardRunRepo := leaderboard.NewRunRepository()
 	leaderboardCache := leaderboard.NewListCache(leaderboard.ListCacheTTL)
-	leaderboardHandler := leaderboard.NewLeaderboardHandler(db, leaderboardRepo, userRepo, leaderboardCache)
+	leaderboardHandler := leaderboard.NewLeaderboardHandler(db, leaderboardRepo, leaderboardRunRepo, userRepo, leaderboardCache)
 	leaderboardCtrl := leaderboard.NewLeaderboardController(leaderboardHandler)
 
 	r := gin.Default()
@@ -109,6 +110,7 @@ func main() {
 	authed.DELETE("/saves", saveCtrl.Delete)
 
 	authed.POST("/leaderboard", leaderboardCtrl.Submit)
+	authed.POST("/leaderboard/run", leaderboardCtrl.StartRun)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
