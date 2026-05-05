@@ -241,24 +241,24 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 	}
 
 	var out SubmitOutput
-	var minSec float64
+	// var minSec float64
 
 	txErr := tx.Transaction(func(itx *gorm.DB) error {
-		// 驗證 run 真實時長下界。
+		// 驗證 run 真實時長下界（暫時停用，保留以便日後恢復）。
 		// 沒有 active run（玩家未呼叫 StartRun，或 token 已被前次提交刪除）→ 拒收。
 		// 真實 wall-clock 時間 < days * MinSecondsPerDay → 拒收。
-		run, runErr := handler.runRepo.FindByUserAndGoalForUpdate(itx, u.ID, payload.Goal)
-		if runErr != nil {
-			if errors.Is(runErr, ErrRunNotFound) {
-				return errNoActiveRun
-			}
-			return runErr
-		}
-		elapsed := time.Since(run.StartedAt).Seconds()
-		minSec = float64(payload.Days) * MinSecondsPerDay
-		if elapsed < minSec {
-			return errRunTooShort
-		}
+		// run, runErr := handler.runRepo.FindByUserAndGoalForUpdate(itx, u.ID, payload.Goal)
+		// if runErr != nil {
+		// 	if errors.Is(runErr, ErrRunNotFound) {
+		// 		return errNoActiveRun
+		// 	}
+		// 	return runErr
+		// }
+		// elapsed := time.Since(run.StartedAt).Seconds()
+		// minSec = float64(payload.Days) * MinSecondsPerDay
+		// if elapsed < minSec {
+		// 	return errRunTooShort
+		// }
 
 		existing, err := handler.repo.FindByUserAndGoalForUpdate(itx, u.ID, payload.Goal)
 		if err != nil && !errors.Is(err, ErrNotFound) {
@@ -325,12 +325,12 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 		return nil
 	})
 
-	if errors.Is(txErr, errNoActiveRun) {
-		return tool.Err(tool.CodeSanityFailed, "no active run; please start a new game first")
-	}
-	if errors.Is(txErr, errRunTooShort) {
-		return tool.Err(tool.CodeSanityFailed, fmt.Sprintf("run duration too short (min %.1fs)", minSec))
-	}
+	// if errors.Is(txErr, errNoActiveRun) {
+	// 	return tool.Err(tool.CodeSanityFailed, "no active run; please start a new game first")
+	// }
+	// if errors.Is(txErr, errRunTooShort) {
+	// 	return tool.Err(tool.CodeSanityFailed, fmt.Sprintf("run duration too short (min %.1fs)", minSec))
+	// }
 	if txErr != nil {
 		log.Printf("%s tx failed: %v", group, txErr)
 		return tool.Err(tool.CodeInternal, "internal error")
