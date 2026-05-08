@@ -19,16 +19,13 @@ import (
 )
 
 const (
-	DefaultGoal     = 50000
-	DefaultLimit    = 10
-	MaxLimit        = 50
-	MaxDays         = 365 * 5
-	MaxOfficeLevel  = 4
-	MaxStaffCount   = 100
-	MaxProjects     = 365 * 3
-	MoneyMultiplier = 5
-	MoneyPerDayCap  = 2000
-	ListCacheTTL    = 30 * time.Minute
+	DefaultGoal    = 50000
+	DefaultLimit   = 10
+	MaxLimit       = 50
+	MaxDays        = 365 * 5
+	MaxOfficeLevel = 4
+	MaxStaffCount  = 100
+	ListCacheTTL   = 30 * time.Minute
 
 	CompanyNameMinRunes = 2
 	CompanyNameMaxRunes = 8
@@ -38,15 +35,13 @@ const (
 	MinSecondsPerDay = 4.9
 )
 
-var allowedGoals = map[int]struct{}{50000: {}}
-
 // 白名單：CJK Unified Ideographs (基本平面 + 擴展) + 英數 + ASCII 空白。
 // 與前端 src/lib/companyName.ts 對齊。
 var companyNameRe = regexp.MustCompile(`^[\p{Han}A-Za-z0-9 ]+$`)
 
 type SubmitPayload struct {
 	Days              int    `json:"days"               binding:"required" example:"58"`
-	Money             int    `json:"money"              binding:"required" example:"52340"`
+	Money             int    `json:"money"              example:"52340"`
 	Goal              int    `json:"goal"               example:"50000"`
 	OfficeLevel       int    `json:"office_level"       example:"4"`
 	StaffCount        int    `json:"staff_count"        example:"9"`
@@ -124,9 +119,6 @@ func (handler *LeaderboardHandler) StartRun(ctx context.Context, uid uuid.UUID, 
 	goal := payload.Goal
 	if goal == 0 {
 		goal = DefaultGoal
-	}
-	if _, ok := allowedGoals[goal]; !ok {
-		return tool.Err(tool.CodeSanityFailed, fmt.Sprintf("goal %d is not supported", goal))
 	}
 
 	tx := handler.db.WithContext(ctx)
@@ -225,7 +217,10 @@ var (
 func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, payload SubmitPayload) tool.CommonResponse {
 	group := "[LeaderboardHandler@Submit]"
 
+	log.Printf("%s incoming uid=%s payload=%+v", group, uid, payload)
+
 	if err := sanityCheck(&payload); err != nil {
+		log.Printf("%s sanity rejected uid=%s err=%v payload=%+v", group, uid, err, payload)
 		return tool.Err(tool.CodeSanityFailed, err.Error())
 	}
 
@@ -338,6 +333,10 @@ func (handler *LeaderboardHandler) Submit(ctx context.Context, uid uuid.UUID, pa
 
 	handler.listCache.InvalidateGoal(payload.Goal)
 
+	log.Printf("%s ok uid=%s id=%d rank=%d total=%d days=%d money=%d office=%d staff=%d projects=%d",
+		group, uid, out.ID, out.Rank, out.Total,
+		payload.Days, payload.Money, payload.OfficeLevel, payload.StaffCount, payload.ProjectsCompleted)
+
 	events.LogInternal(handler.eventBuffer, u.UID, events.TypeSubmitLeaderboard, map[string]any{
 		"goal":               payload.Goal,
 		"days":               payload.Days,
@@ -394,24 +393,11 @@ func sanityCheck(p *SubmitPayload) error {
 	if p.Days < 1 || p.Days > MaxDays {
 		return fmt.Errorf("days must be in [1,%d] (got %d)", MaxDays, p.Days)
 	}
-	if _, ok := allowedGoals[p.Goal]; !ok {
-		return fmt.Errorf("goal %d is not supported", p.Goal)
-	}
-	if p.Money < 0 {
-		return fmt.Errorf("money must be >= 0 (got %d)", p.Money)
-	}
-	moneyMax := p.Goal*MoneyMultiplier + p.Days*MoneyPerDayCap
-	if p.Money > moneyMax {
-		return fmt.Errorf("money suspiciously high (money=%d, max=%d)", p.Money, moneyMax)
-	}
 	if p.OfficeLevel < 0 || p.OfficeLevel > MaxOfficeLevel {
 		return fmt.Errorf("office_level must be in [0,%d] (got %d)", MaxOfficeLevel, p.OfficeLevel)
 	}
 	if p.StaffCount < 0 || p.StaffCount > MaxStaffCount {
 		return fmt.Errorf("staff_count must be in [0,%d] (got %d)", MaxStaffCount, p.StaffCount)
-	}
-	if p.ProjectsCompleted < 0 || p.ProjectsCompleted > MaxProjects {
-		return fmt.Errorf("projects_completed must be in [0,%d] (got %d)", MaxProjects, p.ProjectsCompleted)
 	}
 	if err := validateCompanyName(p.CompanyName); err != nil {
 		return err
